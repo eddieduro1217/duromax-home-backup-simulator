@@ -1,0 +1,5 @@
+{
+  "_note": "Fuel ratings from the DuroMax Residential Generator Sizing Guide (rev. 7-29-26, Fuel Ratings Data tab) that differ from the product-page scrape. The guide values are used. XP13000HXT: product photo panel shows 13,000 / 12,000 / 11,000 peak W and the page's own propane/NG amps match 9,500 / 8,500 running W.",
+  "XP13000HXT": { "lp_starting_w": 12000, "lp_running_w": 9500, "ng_starting_w": 11000, "ng_running_w": 8500 },
+  "XP13000EH":  { "lp_starting_w": 12350, "lp_running_w": 9975 }
+}

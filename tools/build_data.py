@@ -8,6 +8,10 @@ OUT = os.path.join(HERE, '..', 'data')
 
 gens = json.load(open(os.path.join(SRC, 'generators.json')))
 eq = json.load(open(os.path.join(SRC, 'equipment.json')))
+# Sizing-guide fuel ratings override the product-page scrape where they differ (see overrides.json _note).
+_ov = json.load(open(os.path.join(SRC, 'overrides.json')))
+for g in gens:
+    g.update(_ov.get(g['model'], {}))
 
 OUTLET_CAP = {'14-50R': 12000, 'L14-30R': 7200}   # 50A x 240V, 30A x 240V
 
@@ -25,6 +29,26 @@ def fuel(g, p):
         d['runtime50'] = g.get(p + '_runtime_50_hr')
     return d
 
+import re
+def dims(g):
+    nums = [float(x) for x in re.findall(r'\d+(?:\.\d+)?', g.get('dimensions_in') or '')][:3]
+    return nums if len(nums) == 3 else None
+
+def family(g):
+    m = g['model']
+    if m == 'XP2300iH': return 'suitcase'
+    if g['gen_type'] == 'Open frame inverter': return 'openInverter'
+    if g['gen_type'] == 'Inverter': return 'inverterBlue' if m.startswith('XP7000') else 'inverter'
+    return 'openFrame'
+
+def colors(g):
+    m = g['model']
+    if g['brand'] == 'DuroStar':
+        if m.startswith('DS10000'): return {'engine': '#d7261e', 'tank': '#d7261e', 'accent': '#d7261e'}
+        return {'engine': '#d7261e', 'tank': '#1b1c1e', 'accent': '#d7261e'}
+    if m in ('XP4850EH', 'XP11500EH'): return {'engine': '#2fae3b', 'tank': '#2fae3b', 'accent': '#2f7fd1'}
+    return {'engine': '#1f56c9', 'tank': '#1f56c9', 'accent': '#1f56c9'}
+
 out = []
 for g in gens:
     bo = best_outlet(g)
@@ -40,7 +64,7 @@ for g in gens:
         'outlets': {k: g.get('out_' + k.lower().replace('-', '_')) or 0 for k in ('5-20R', 'L5-30R', 'TT-30R', 'L14-30R', '14-50R')},
         'bestOutlet': bo, 'outletCapW': OUTLET_CAP.get(bo, 0),
         'neutral': g.get('neutral_type'), 'unbondDoc': g.get('unbond_doc_url'), 'manual': g.get('manual_url'),
-        'noise': g.get('noise_db'), 'weightLb': g.get('weight_dry_lb') or g.get('weight_wet_lb'),
+        'family': family(g), 'dimsIn': dims(g), 'colors': colors(g), 'noise': g.get('noise_db'), 'weightLb': g.get('weight_dry_lb') or g.get('weight_wet_lb'),
         'engineCc': g.get('engine_cc'), 'start': g.get('start_type'), 'coShutdown': g.get('co_shutdown'),
         'thd': g.get('thd'), 'warranty': g.get('warranty'), 'url': g.get('url'), 'image': g.get('image_url'),
     })

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<!-- Dev tool: renders every generator model side by side. Serve the repo and open /tests/generator-preview.html -->
+<html><head><meta charset="utf-8"><title>Generator model preview</title>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+<style>body{margin:0;background:#eef2f5}canvas{display:block}</style></head>
+<body><script src="../data/generators.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { buildGenerator } from '../js/models/generator.js';
+const q = new URLSearchParams(location.search);
+const list = (q.get('models') || 'XP13000HX,XP13500iH,XP2300iH,DS13000MX,DS14000iX,XP7000iH,XP17500HXT,XP28000iHT,XP4850EH').split(',');
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+const s = new THREE.Scene(); s.background = new THREE.Color(0xf4f6f8); s.environment = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(3, 6, 5); d.castShadow = true; s.add(d, new THREE.HemisphereLight(0xffffff, 0x888888, 0.6));
+const cols = 3;
+list.forEach((m, i) => { const g = window.GENERATORS.find(x => x.model === m); if (!g) return; const b = buildGenerator(g); b.group.position.set((i % cols) * 1.6, 0, Math.floor(i / cols) * 1.5); b.led.emissiveIntensity = 2; s.add(b.group); });
+const fl = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: 0xdde3e8 })); fl.rotation.x = -Math.PI / 2; fl.receiveShadow = true; s.add(fl);
+const c = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.1, 50); c.position.set(1.6, 3.2, 6.6);
+const o = new OrbitControls(c, r.domElement); o.target.set(1.6, 0.3, 1.5); o.update();
+(function loop() { requestAnimationFrame(loop); r.render(s, c); })();
+</script></body></html>

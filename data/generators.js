@@ -37,6 +37,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP4850eh_manual_revised10042022_WEB.pdf",
+  "family": "openFrame",
+  "dimsIn": [
+   25.0,
+   24.0,
+   21.0
+  ],
+  "colors": {
+   "engine": "#2fae3b",
+   "tank": "#2fae3b",
+   "accent": "#2f7fd1"
+  },
   "noise": 69,
   "weightLb": 122,
   "engineCc": 210,
@@ -84,6 +95,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP5500HX_manual_revised_12012023_CARB_EPA_WEB.pdf",
+  "family": "openFrame",
+  "dimsIn": [
+   25.0,
+   23.0,
+   22.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 69,
   "weightLb": 128,
   "engineCc": 210,
@@ -125,6 +147,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP10000X_manual_revised_07152022_WEB.pdf?v=1658848035",
+  "family": "openFrame",
+  "dimsIn": [
+   29.0,
+   30.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 72,
   "weightLb": 220,
   "engineCc": 420,
@@ -172,6 +205,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP11500EH_manual_revised_07262022_WEB.pdf?v=1659652695",
+  "family": "openFrame",
+  "dimsIn": [
+   29.0,
+   30.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#2fae3b",
+   "tank": "#2fae3b",
+   "accent": "#2f7fd1"
+  },
   "noise": 74,
   "weightLb": 224,
   "engineCc": 457,
@@ -199,14 +243,14 @@ window.GENERATORS = [
     "runtime50": 8.5
    },
    "Propane": {
-    "starting": 12500,
-    "running": 10000,
+    "starting": 12000,
+    "running": 9500,
     "runtime25": 13,
     "runtime50": 6.5
    },
    "Natural Gas": {
-    "starting": 11250,
-    "running": 9000
+    "starting": 11000,
+    "running": 8500
    }
   },
   "lpTankBasis": null,
@@ -223,6 +267,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13000HXT_manual_revised_02072025_WEB.pdf?v=1755815346",
+  "family": "openFrame",
+  "dimsIn": [
+   30.0,
+   29.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 74,
   "weightLb": 240,
   "engineCc": 500,
@@ -270,6 +325,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13000HX_manual_revised_09162022_WEB.pdf?v=1663372666",
+  "family": "openFrame",
+  "dimsIn": [
+   30.0,
+   29.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 74,
   "weightLb": 240,
   "engineCc": 500,
@@ -297,8 +363,8 @@ window.GENERATORS = [
     "runtime50": 8
    },
    "Propane": {
-    "starting": 12500,
-    "running": 10000,
+    "starting": 12350,
+    "running": 9975,
     "runtime25": 13,
     "runtime50": 6
    }
@@ -317,6 +383,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13000EH_manual_rev06172022_WEB.pdf?v=1656093569",
+  "family": "openFrame",
+  "dimsIn": [
+   29.0,
+   30.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 74,
   "weightLb": 234,
   "engineCc": 500,
@@ -368,6 +445,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": null,
+  "family": "openFrame",
+  "dimsIn": [
+   31.0,
+   28.25,
+   28.25
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 77,
   "weightLb": 269,
   "engineCc": 550,
@@ -415,6 +503,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": null,
+  "family": "openFrame",
+  "dimsIn": [
+   31.0,
+   29.0,
+   28.75
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 77,
   "weightLb": 269,
   "engineCc": 550,
@@ -466,6 +565,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HXT__manual_03042025_WEB_1.pdf?v=1755808459",
+  "family": "openFrame",
+  "dimsIn": [
+   29.5,
+   28.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 74,
   "weightLb": 237,
   "engineCc": 500,
@@ -513,6 +623,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HX__Remove_Bond_Instructions_WEB.pdf?v=1761163937",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HX__manual_08272025_WEB.pdf?v=1756401571",
+  "family": "openFrame",
+  "dimsIn": [
+   29.5,
+   28.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 74,
   "weightLb": 237,
   "engineCc": 500,
@@ -564,6 +685,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HXT_Remove_Bond_Instructions.pdf?v=1786147971",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HXT_manual_02072025_WEB.pdf?v=1755815346",
+  "family": "openFrame",
+  "dimsIn": [
+   36.0,
+   33.2,
+   32.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 78,
   "weightLb": 362,
   "engineCc": 670,
@@ -611,6 +743,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HX_Remove_Bond_Instructions.pdf?v=1786148129",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP15000HX_manual_12012023_EPA_CARB_version_WEB.pdf",
+  "family": "openFrame",
+  "dimsIn": [
+   36.0,
+   33.2,
+   32.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 78,
   "weightLb": 345,
   "engineCc": 670,
@@ -662,6 +805,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": null,
+  "family": "openFrame",
+  "dimsIn": [
+   31.0,
+   28.0,
+   28.75
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 77,
   "weightLb": 269,
   "engineCc": 600,
@@ -709,6 +863,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": null,
+  "family": "openFrame",
+  "dimsIn": [
+   31.0,
+   28.0,
+   28.75
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 77,
   "weightLb": 269,
   "engineCc": 600,
@@ -756,6 +921,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP2300iH_manual_revised_04042024_EPA_CARB_WEB.pdf",
+  "family": "suitcase",
+  "dimsIn": [
+   22.0,
+   14.0,
+   20.0
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 52,
   "weightLb": 50.6,
   "engineCc": 80,
@@ -803,6 +979,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP7000iH_Inverters.pdf?v=1735255332",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP7000iH_manual_revised_02162024_WEB.pdf?v=1714662622",
+  "family": "inverterBlue",
+  "dimsIn": [
+   25.1,
+   19.4,
+   21.38
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 62,
   "weightLb": null,
   "engineCc": 320,
@@ -854,6 +1041,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP7000iHT_removing_the_bond_instructions_WEB.pdf",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP7000iHT_manual_revised_11102025_WEB.pdf?v=1762799463",
+  "family": "inverterBlue",
+  "dimsIn": [
+   25.1,
+   19.4,
+   21.38
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 62,
   "weightLb": null,
   "engineCc": 320,
@@ -901,6 +1099,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP9500iH_removing_the_bond_instructions_version_1_2_WEB.pdf?v=1747339695",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP9500iH_manual_revised_09162026_WEB.pdf?v=1789592677",
+  "family": "inverter",
+  "dimsIn": [
+   26.2,
+   25.0,
+   29.6
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 61,
   "weightLb": 216,
   "engineCc": 459,
@@ -952,6 +1161,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP9500iHT_manual_revised_09162026_WEB.pdf?v=1789592676",
+  "family": "inverter",
+  "dimsIn": [
+   26.2,
+   25.0,
+   29.6
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 61,
   "weightLb": 216,
   "engineCc": 459,
@@ -999,6 +1219,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP11000iH_removing_the_bond_instructions_version_1_2_WEB.pdf?v=1747339695",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP11000iH_manual_revised_09162026_WEB.pdf?v=1789592676",
+  "family": "inverter",
+  "dimsIn": [
+   26.2,
+   25.0,
+   29.6
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 61,
   "weightLb": 216,
   "engineCc": 459,
@@ -1050,6 +1281,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP11000iHT_removing_the_bond_instructions_WEB.pdf?v=1761163937",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP11000iHT_manual_revised_01092026_WEB_26de0f28-3de3-4150-b792-89df5c120acb.pdf?v=1789592676",
+  "family": "inverter",
+  "dimsIn": [
+   26.2,
+   25.0,
+   29.6
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 61,
   "weightLb": 216,
   "engineCc": 459,
@@ -1097,6 +1339,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13500iH_removing_the_bond_instructions_WEB.pdf?v=1786148204",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13500iH_manual_revised_02132026_PRINT_2_3.pdf?v=1787850983",
+  "family": "inverter",
+  "dimsIn": [
+   32.0,
+   22.75,
+   26.5
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 66,
   "weightLb": 234,
   "engineCc": 550,
@@ -1148,6 +1401,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13500iHT_removing_the_bond_instructions_WEB.pdf?v=1786148205",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP13500iHT_manual_revised_02132026_PRINT_1_2.pdf?v=1787850984",
+  "family": "inverter",
+  "dimsIn": [
+   32.0,
+   22.75,
+   26.5
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 66,
   "weightLb": 234,
   "engineCc": 550,
@@ -1195,6 +1459,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP16000iH_removing_the_bond_instructions_version_2_WEB.pdf?v=1747326258",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP16000iH_manual_revised_04132026_WEB.pdf?v=1789592676",
+  "family": "inverter",
+  "dimsIn": [
+   38.3,
+   30.8,
+   34.4
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 66.9,
   "weightLb": 368,
   "engineCc": 744,
@@ -1246,6 +1521,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP16000iHT_removing_the_bond_instructions_WEB.pdf?v=1744242012",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP16000iHT_manual_revised_04062026_WEB.pdf?v=1789592676",
+  "family": "inverter",
+  "dimsIn": [
+   38.3,
+   30.8,
+   34.4
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 66.9,
   "weightLb": 368,
   "engineCc": 744,
@@ -1293,6 +1579,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP28000iH_removing_the_bond_instructions_WEB.pdf?v=1785177004",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP28000iH_manual_revised_07182025_WEB_1.pdf?v=1770937923",
+  "family": "inverter",
+  "dimsIn": [
+   39.25,
+   31.0,
+   34.5
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 70,
   "weightLb": 466,
   "engineCc": 999,
@@ -1344,6 +1641,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP28000iHT_removing_the_bond_instructions_WEB.pdf?v=1774886017",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/XP28000iHT_manual_revised_07222025_WEB.pdf?v=1770937923",
+  "family": "inverter",
+  "dimsIn": [
+   39.25,
+   31.0,
+   34.5
+  ],
+  "colors": {
+   "engine": "#1f56c9",
+   "tank": "#1f56c9",
+   "accent": "#1f56c9"
+  },
   "noise": 70,
   "weightLb": 466,
   "engineCc": 999,
@@ -1391,6 +1699,17 @@ window.GENERATORS = [
   "neutral": "Floating",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS10000EH_manual_revised07202022_WEB.pdf?v=1658848035",
+  "family": "openFrame",
+  "dimsIn": [
+   29.0,
+   30.0,
+   26.0
+  ],
+  "colors": {
+   "engine": "#d7261e",
+   "tank": "#d7261e",
+   "accent": "#d7261e"
+  },
   "noise": 72,
   "weightLb": 220,
   "engineCc": 439,
@@ -1438,6 +1757,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS13000MX_Remove_Bond_Instructions_WEB.pdf?v=1785788297",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS13000MX_manual_rev10172025_WEB.pdf?v=1761163938",
+  "family": "openFrame",
+  "dimsIn": [
+   29.75,
+   27.5,
+   25.75
+  ],
+  "colors": {
+   "engine": "#d7261e",
+   "tank": "#1b1c1e",
+   "accent": "#d7261e"
+  },
   "noise": 74,
   "weightLb": 209,
   "engineCc": 500,
@@ -1489,6 +1819,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS13000MXT_manual_rev11052024_WEB_81498861-c22b-437b-8725-37c4ed71a054.pdf",
+  "family": "openFrame",
+  "dimsIn": [
+   30.5,
+   27.3,
+   26.0
+  ],
+  "colors": {
+   "engine": "#d7261e",
+   "tank": "#1b1c1e",
+   "accent": "#d7261e"
+  },
   "noise": 74,
   "weightLb": 211,
   "engineCc": 500,
@@ -1536,6 +1877,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": null,
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS8000iX_manual_rev09032026_WEB.pdf?v=1788463634",
+  "family": "openInverter",
+  "dimsIn": [
+   24.0,
+   23.25,
+   24.25
+  ],
+  "colors": {
+   "engine": "#d7261e",
+   "tank": "#1b1c1e",
+   "accent": "#d7261e"
+  },
   "noise": 70,
   "weightLb": 134,
   "engineCc": 322,
@@ -1583,6 +1935,17 @@ window.GENERATORS = [
   "neutral": "Bonded",
   "unbondDoc": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS14000iX_removing_the_bond_instructions_WEB.pdf?v=1784323806",
   "manual": "https://cdn.shopify.com/s/files/1/0613/1168/0689/files/DS14000iX_manual_rev07062026_WEB.pdf?v=1783375557",
+  "family": "openInverter",
+  "dimsIn": [
+   29.19,
+   23.43,
+   27.17
+  ],
+  "colors": {
+   "engine": "#d7261e",
+   "tank": "#1b1c1e",
+   "accent": "#d7261e"
+  },
   "noise": 74,
   "weightLb": 212,
   "engineCc": 550,

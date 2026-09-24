@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Home Backup Power Simulator | DuroMax &amp; DuroStar</title>
-<meta name="description" content="See which home appliances a DuroMax or DuroStar portable generator can power through a transfer switch or interlock kit.">
+<meta name="description" content="See which home appliances a DuroMax or DuroStar portable generator can power through a transfer switch or interlock kit, and find the right generator size for your home.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/app.css">
 <script type="importmap">
 { "imports": {
@@ -14,117 +17,171 @@
 </script>
 </head>
 <body>
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="topbar-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+    </span>
+    <div>
+      <h1>Home Backup Power Simulator</h1>
+      <p>See what a DuroMax or DuroStar generator can power in your home</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-outline-light" id="howBtn">How it works</button>
+    <button class="btn btn-outline-light" id="shareBtn" title="Copy a link to this setup">Share setup</button>
+  </div>
+</header>
+
 <div id="app">
   <main id="viewport">
     <div id="scene"></div>
+    <div id="loading" class="loading"><div class="spinner"></div><span>Loading 3D home…</span></div>
     <div id="banner" class="banner hidden" role="alert">
+      <div class="banner-icon" aria-hidden="true">!</div>
       <div class="banner-text"><strong id="bannerTitle"></strong><span id="bannerMsg"></span></div>
-      <button id="resetBtn" class="btn btn-accent">Reset generator breaker</button>
+      <button id="resetBtn" class="btn btn-primary">Reset generator breaker</button>
     </div>
     <div class="hud-top">
       <div class="hud-chip" id="hudGen">—</div>
       <div class="hud-chip" id="hudLoad">0 W</div>
     </div>
     <div class="hud-bottom">
-      <button class="btn btn-ghost" id="viewHome" title="Overview">Overview</button>
-      <button class="btn btn-ghost" id="viewPanel" title="Look at the panel and generator">Panel &amp; generator</button>
-      <button class="btn btn-ghost" id="dayNight" title="Toggle day / night">Switch to day</button>
+      <button class="btn btn-hud" id="viewHome">Overview</button>
+      <button class="btn btn-hud" id="viewPanel">Generator</button>
+      <button class="btn btn-hud" id="viewGarage">Garage</button>
+      <button class="btn btn-hud" id="dayNight">Day view</button>
     </div>
+    <div id="toast" class="toast hidden" role="status"></div>
     <div id="tooltip" class="tooltip hidden"></div>
-    <div class="hint">Click an appliance to switch its breaker. Drag to rotate, scroll to zoom.</div>
+    <div class="hint">Click an appliance to switch it on or off · drag to rotate · scroll to zoom</div>
   </main>
 
   <aside id="sidebar">
-    <header class="brand">
-      <div class="brand-mark">⚡</div>
-      <div>
-        <h1>Home Backup Power Simulator</h1>
-        <p>DuroMax &amp; DuroStar portable generators</p>
-      </div>
-    </header>
-
     <section class="card">
-      <h2>1. Generator</h2>
+      <h2><span class="step">1</span>Choose a generator</h2>
       <div class="seg" id="brandSeg">
         <button data-brand="All" class="on">All</button>
         <button data-brand="DuroMax">DuroMax</button>
         <button data-brand="DuroStar">DuroStar</button>
       </div>
       <label class="field"><span>Model</span><select id="genSelect"></select></label>
+      <div class="product" id="product"></div>
       <div class="field"><span>Fuel</span><div class="seg" id="fuelSeg"></div></div>
       <div class="specs" id="genSpecs"></div>
     </section>
 
     <section class="card">
-      <h2>2. Home connection</h2>
-      <div class="seg" id="connSeg">
+      <h2><span class="step">2</span>Connect it to the home</h2>
+      <div class="seg seg-3" id="connSeg">
         <button data-conn="interlock">Interlock kit</button>
         <button data-conn="transfer">Transfer switch</button>
         <button data-conn="cords">Extension cords</button>
       </div>
-      <p class="muted small" id="connDesc"></p>
+      <p class="muted" id="connDesc"></p>
       <label class="field" id="tsField"><span>Transfer switch</span><select id="tsSelect"></select></label>
       <div id="tsSlots" class="slots"></div>
       <div id="neutralNote" class="note"></div>
-      <details class="equip" id="equipBox">
-        <summary>What you need for this setup</summary>
+      <label class="field" id="distField"><span>Generator distance from the house inlet</span>
+        <select id="distSelect"><option value="25">Up to 25 ft</option><option value="50">26 – 50 ft</option><option value="99">More than 50 ft</option></select>
+      </label>
+      <details class="equip" id="equipBox" open>
+        <summary>What you'll need for this setup</summary>
         <div id="equipList"></div>
       </details>
     </section>
 
-    <section class="card">
-      <h2>3. Load</h2>
+    <section class="card card-load" id="loadCard">
+      <h2><span class="step">3</span>Your power use</h2>
       <div class="meter">
-        <div class="meter-head"><span>Running load</span><span id="runText">0 / 0 W</span></div>
-        <div class="bar"><div class="fill" id="runFill"></div></div>
-        <div class="meter-head"><span>Peak starting load</span><span id="surgeText">0 / 0 W</span></div>
+        <div class="meter-head"><span>Running load <span class="muted small">(line = 20% reserve)</span></span><span id="runText">0 / 0 W</span></div>
+        <div class="bar"><div class="fill" id="runFill"></div><div class="reserve" id="reserveMark" title="Recommended maximum (20% reserve)"></div></div>
+        <div class="meter-head"><span>Peak when a motor starts</span><span id="surgeText">0 / 0 W</span></div>
         <div class="bar thin"><div class="fill" id="surgeFill"></div></div>
       </div>
+      <div class="status" id="statusLine"></div>
       <div class="stats">
         <div><span class="stat-label">Load</span><span class="stat" id="pctText">0%</span></div>
         <div><span class="stat-label">Est. runtime</span><span class="stat" id="runtimeText">—</span></div>
         <div><span class="stat-label">Limited by</span><span class="stat small" id="limitText">—</span></div>
       </div>
-      <label class="toggle-row">
-        <input type="checkbox" id="softStart">
-        <span class="switch"></span>
-        <span><strong>AirGo soft starter</strong> on the central AC<br><span class="muted small">Cuts the start-up surge so the AC can start on a portable generator.</span></span>
-      </label>
     </section>
 
     <section class="card">
-      <h2>4. Breaker panel</h2>
+      <h2><span class="step">4</span>Switch on appliances</h2>
       <div class="presets">
-        <button class="btn btn-small" data-preset="essentials">Essentials</button>
-        <button class="btn btn-small" data-preset="comfort">Comfort</button>
-        <button class="btn btn-small" data-preset="off">All off</button>
+        <button class="btn btn-chip" data-preset="essentials">Essentials</button>
+        <button class="btn btn-chip" data-preset="comfort">Comfort</button>
+        <button class="btn btn-chip" data-preset="wholehome">Whole home + A/C</button>
+        <button class="btn btn-chip" data-preset="off">All off</button>
       </div>
-      <p class="muted small" id="panelHelp"></p>
+      <p class="muted" id="panelHelp"></p>
+      <div class="acbox" id="acBox">
+        <label class="field" style="margin-top:0"><span>Central A/C size</span><select id="tonSelect"></select></label>
+        <p class="muted small" id="acHint"></p>
+        <details class="nameplate">
+          <summary>Have your A/C nameplate? Enter it for a more accurate result</summary>
+          <div class="np-grid">
+            <label>Voltage<input type="number" id="npV" value="230" min="100" max="260" step="1"></label>
+            <label>Compressor RLA<input type="number" id="npRla" placeholder="e.g. 17.9" step="0.1" min="0"></label>
+            <label>Fan FLA<input type="number" id="npFla" placeholder="e.g. 1.9" step="0.1" min="0"></label>
+            <label>Compressor LRA<input type="number" id="npLra" placeholder="e.g. 103" step="0.1" min="0"></label>
+          </div>
+          <p class="muted small">Find these on the label of the outdoor unit. Don't use MCA or the maximum breaker size. Single-stage, single-phase units only.</p>
+          <button class="btn btn-small" id="npClear">Clear nameplate</button>
+        </details>
+        <label class="toggle-row">
+          <input type="checkbox" id="softStart">
+          <span class="switch"></span>
+          <span><strong>AirGo soft starter</strong> on the central A/C<br><span class="muted small" id="softHint">Cuts the A/C's start-up surge so a portable generator can start it.</span></span>
+        </label>
+      </div>
       <div id="panel"></div>
     </section>
 
     <section class="card">
-      <details>
-        <summary><h2 class="inline">How it works</h2></summary>
+      <h2><span class="step">5</span>Generators that fit this plan</h2>
+      <p class="muted" id="targetText"></p>
+      <div id="matchList"></div>
+    </section>
+
+    <section class="card">
+      <details id="guide">
+        <summary><h2 class="inline">How sizing works</h2></summary>
         <div class="guide">
-          <h3>Interlock kit</h3>
-          <p>A slide plate on your breaker panel cover. With it slid up, the generator (backfeed) breaker can be switched on while the main breaker is held off, so generator power can never flow back onto the utility lines. You pick which breakers to run, and can change them anytime.</p>
-          <h3>Transfer switch</h3>
-          <p>A small subpanel an electrician wires to a set of pre-selected circuits. Up to 7,200 W: 6-circuit switch with a 30A inlet. Above 7,200 W: 10-circuit switch with a 50A inlet. A 240V load uses two circuits.</p>
-          <h3>Extension cords</h3>
-          <p>No installation - plug appliances straight into the generator. 240V appliances (well pump, water heater, range, electric dryer, central AC) can't run this way. Put each high-draw appliance on its own cord.</p>
-          <h3>Bonded vs floating neutral</h3>
-          <p>Floating-neutral generators connect to a standard 2-pole transfer switch or interlock as-is. Bonded-neutral generators need the bond removed by a qualified electrician (DuroMax publishes instructions) or a neutral-switching switch. Never run a generator with the bond removed unless it is grounded through the home. On several models, removing the bond disables the GFCI outlets.</p>
-          <h3>Running vs starting watts</h3>
-          <p>Motors (fridge, pumps, AC, furnace blower) need extra power for a second or two when they start. The simulator checks the running total against the generator's running watts (limited by the cord/inlet: 30A = 7,200 W, 50A = 12,000 W), and each start-up against its starting (peak) watts.</p>
+          <h3>Running vs. starting watts</h3>
+          <p>Motors (refrigerator, pumps, A/C, furnace blower) need extra power for a second or two when they start. The simulator checks your running total against the generator's running watts, and each start-up against its peak (starting) watts. Start large motors one at a time.</p>
+          <h3>Our recommendation</h3>
+          <p>We recommend a generator whose running watts cover your running load plus a 20% reserve, and whose peak watts cover your running load plus the largest single start-up. Always use the ratings for the fuel you'll actually use: propane and natural gas produce less power than gasoline.</p>
+          <h3>Central A/C</h3>
+          <p>Central A/C is usually the biggest start-up load. Sizes are based on typical single-stage units. For an accurate result, enter the RLA and LRA from your outdoor unit's nameplate. The indoor blower runs with the A/C and is counted separately. A soft starter, like the AirGo, reduces the start-up surge. Your HVAC professional should confirm it's compatible with your unit.</p>
+          <h3>Interlock kit vs. transfer switch</h3>
+          <p><b>Interlock kit:</b> a slide plate on your breaker panel that holds the main breaker off while the generator breaker is on, so power can never flow back onto the utility lines. Every circuit is available, and you choose what to run. <b>Transfer switch:</b> a small subpanel wired to pre-selected circuits. Up to 7,200 W, use a 6-circuit switch with a 30A inlet. Above 7,200 W, use a 10-circuit switch with a 50A inlet.</p>
+          <h3>Bonded vs. floating neutral</h3>
+          <p>Floating-neutral generators connect to a standard 2-pole transfer switch or interlock as-is. Bonded-neutral generators need the bond removed by a qualified electrician (DuroMax publishes instructions) or a neutral-switching transfer switch.</p>
+          <h3>Safety</h3>
+          <p>Only run a generator outdoors, away from doors, windows and vents. Never plug a generator into a wall outlet (backfeeding). Home connections must be installed by a licensed electrician.</p>
         </div>
       </details>
     </section>
 
     <footer class="disclaimer">
-      Wattages are typical estimates - check each appliance's nameplate. Connecting a generator to home wiring requires an approved transfer switch or interlock kit installed by a licensed electrician per local code. Generator specs from duromaxpower.com, Sept 2026.
+      Wattages are planning estimates from the DuroMax Residential Generator Sizing Guide and typical appliance data. Always check each appliance's nameplate. Connecting a generator to home wiring requires an approved transfer switch or interlock kit installed by a licensed electrician per local code. Generator specs from duromaxpower.com.
     </footer>
   </aside>
+</div>
+
+<div id="intro" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+  <div class="modal-card">
+    <h2 id="introTitle">Will your generator power your home?</h2>
+    <ol class="intro-steps">
+      <li><b>Pick a generator and fuel.</b> Choose any DuroMax or DuroStar model.</li>
+      <li><b>Choose how it connects.</b> Interlock kit, transfer switch or extension cords.</li>
+      <li><b>Switch on what you need.</b> Click appliances in the house or use the breaker list. Too much load and the generator breaker trips, just like the real thing.</li>
+    </ol>
+    <p class="muted">We'll show which generators fit your plan with a safe 20% reserve.</p>
+    <button class="btn btn-cta" id="introGo">Start the simulator</button>
+  </div>
 </div>
 
 <script src="data/generators.js"></script>
