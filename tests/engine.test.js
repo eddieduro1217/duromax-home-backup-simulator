@@ -59,7 +59,9 @@ const f = g('XP13000HX').fuels.Gasoline;
 assert.ok(Math.abs(E.runtimeHours(f, 0.25) - f.runtime25) < 1e-9);
 assert.ok(Math.abs(E.runtimeHours(f, 0.5) - f.runtime50) < 1e-9);
 // Blocked reasons
-assert.ok(E.blockedReason(ac, 'cords', new Set()));
-assert.ok(E.blockedReason(APPS[0], 'transfer', new Set()));
-assert.strictEqual(E.blockedReason(APPS[0], 'interlock', new Set()), null);
+assert.ok(E.blockedReason(ac, 'cords'));
+assert.strictEqual(E.blockedReason(APPS[0], 'transfer'), null);
+assert.strictEqual(E.blockedReason(APPS[0], 'interlock'), null);
+// Transfer switch circuits: well pump (240V) = 2, fridge = 1
+assert.strictEqual(E.slotsUsed(APPS, new Set(['well', 'fridge'])), 3);
 console.log('All engine tests passed. Essentials running load =', expected, 'W');

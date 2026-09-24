@@ -10,6 +10,7 @@
  *  - Whole-load check (reset / preset / generator change) = total running + the single largest start-up surge.
  *  - AirGo soft starter removes SOFT_START_REDUCTION of the surge (starting - running) on eligible loads.
  *  - Transfer switch circuits: 120V load = 1 circuit, 240V load = 2 circuits (Reliance "10 single-pole or 5 double-pole").
+ *    In the simulator an appliance is connected to the switch when it is switched on; the switch's circuit count is the limit.
  *
  * Sizing recommendation (DuroMax Residential Generator Sizing Guide, rev. 7-29-26):
  *  - Running target = total running W x (1 + 20% headroom), rounded up to the next 100 W.
@@ -46,11 +47,13 @@
   }
 
   /** Why an appliance cannot be connected at all in the current setup (or null). */
-  function blockedReason(app, connection, wiredSet) {
+  function blockedReason(app, connection) {
     if (connection === 'cords' && app.volts === 240) return '240V appliances cannot run on extension cords';
-    if (connection === 'transfer' && !wiredSet.has(app.id)) return 'Not wired to the transfer switch';
     return null;
   }
+
+  /** Transfer-switch circuits used by the appliances that are switched on (120V = 1, 240V = 2). */
+  function slotsUsed(apps, onSet) { let n = 0; for (const a of apps) if (onSet.has(a.id)) n += circuitSlots(a); return n; }
 
   /** Totals for a set of appliances that are switched on. */
   function totals(apps, onSet, opts) {
@@ -143,7 +146,7 @@
     return { running: ceil100(volts * (rla + fan)), starting: ceil100(volts * lra * k + volts * fan) };
   }
 
-  const Engine = { effectiveStarting, circuitSlots, capacity, blockedReason, totals, checkLoad, checkTurnOn, runtimeHours, fmt,
+  const Engine = { effectiveStarting, circuitSlots, slotsUsed, capacity, blockedReason, totals, checkLoad, checkTurnOn, runtimeHours, fmt,
     ceil100, targets, qualify, matchGenerators, acFromNameplate };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine; else root.Engine = Engine;
 })(typeof window !== 'undefined' ? window : globalThis);

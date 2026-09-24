@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=2.1">
+<link rel="stylesheet" href="css/app.css?v=2.3">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -35,16 +35,37 @@
 
 <div id="app">
   <main id="viewport">
+    <div class="powerbar" id="powerbar" aria-live="polite">
+      <div class="pb-top">
+        <div class="pb-title"><h2>Your power use</h2><span id="hudGen">—</span></div>
+        <div class="pb-stats">
+          <div class="pb-stat"><span>Load</span><b id="pctText">0%</b></div>
+          <div class="pb-stat"><span>Est. runtime</span><b id="runtimeText">—</b></div>
+          <div class="pb-stat"><span>Limited by</span><b id="limitText">—</b></div>
+        </div>
+      </div>
+      <div class="pb-meters">
+        <div class="pb-meter">
+          <div class="pb-head"><span>Running load</span><b id="runText">0 / 0 W</b></div>
+          <div class="bar"><div class="fill" id="runFill"></div><div class="reserve" id="reserveMark" title="Recommended maximum: keep a 20% reserve"></div></div>
+        </div>
+        <div class="pb-meter">
+          <div class="pb-head"><span>Peak when a motor starts</span><b id="surgeText">0 / 0 W</b></div>
+          <div class="bar"><div class="fill" id="surgeFill"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="subbar">
+      <div class="status" id="statusLine"></div>
+      <div id="tsSlots" class="slots hidden"></div>
+    </div>
+    <div id="stage">
     <div id="scene"></div>
     <div id="loading" class="loading"><div class="spinner"></div><span>Loading 3D home…</span></div>
     <div id="banner" class="banner hidden" role="alert">
       <div class="banner-icon" aria-hidden="true">!</div>
       <div class="banner-text"><strong id="bannerTitle"></strong><span id="bannerMsg"></span></div>
       <button id="resetBtn" class="btn btn-primary">Reset generator breaker</button>
-    </div>
-    <div class="hud-top">
-      <div class="hud-chip" id="hudGen">—</div>
-      <div class="hud-chip" id="hudLoad">0 W</div>
     </div>
     <div class="hud-bottom">
       <button class="btn btn-hud" id="viewHome">Overview</button>
@@ -55,6 +76,7 @@
     <div id="toast" class="toast hidden" role="status"></div>
     <div id="tooltip" class="tooltip hidden"></div>
     <div class="hint">Click an appliance to switch it on or off · drag to rotate · scroll to zoom</div>
+    </div>
   </main>
 
   <aside id="sidebar">
@@ -80,7 +102,6 @@
       </div>
       <p class="muted" id="connDesc"></p>
       <label class="field" id="tsField"><span>Transfer switch</span><select id="tsSelect"></select></label>
-      <div id="tsSlots" class="slots"></div>
       <div id="neutralNote" class="note"></div>
       <label class="field" id="distField"><span>Generator distance from the house inlet</span>
         <select id="distSelect"><option value="25">Up to 25 ft</option><option value="50">26 – 50 ft</option><option value="99">More than 50 ft</option></select>
@@ -91,24 +112,8 @@
       </details>
     </section>
 
-    <section class="card card-load" id="loadCard">
-      <h2><span class="step">3</span>Your power use</h2>
-      <div class="meter">
-        <div class="meter-head"><span>Running load <span class="muted small">(line = 20% reserve)</span></span><span id="runText">0 / 0 W</span></div>
-        <div class="bar"><div class="fill" id="runFill"></div><div class="reserve" id="reserveMark" title="Recommended maximum (20% reserve)"></div></div>
-        <div class="meter-head"><span>Peak when a motor starts</span><span id="surgeText">0 / 0 W</span></div>
-        <div class="bar thin"><div class="fill" id="surgeFill"></div></div>
-      </div>
-      <div class="status" id="statusLine"></div>
-      <div class="stats">
-        <div><span class="stat-label">Load</span><span class="stat" id="pctText">0%</span></div>
-        <div><span class="stat-label">Est. runtime</span><span class="stat" id="runtimeText">—</span></div>
-        <div><span class="stat-label">Limited by</span><span class="stat small" id="limitText">—</span></div>
-      </div>
-    </section>
-
     <section class="card">
-      <h2><span class="step">4</span>Switch on appliances</h2>
+      <h2><span class="step">3</span>Switch on appliances</h2>
       <div class="presets">
         <button class="btn btn-chip" data-preset="essentials">Essentials</button>
         <button class="btn btn-chip" data-preset="comfort">Comfort</button>
@@ -140,7 +145,7 @@
     </section>
 
     <section class="card">
-      <h2><span class="step">5</span>Generators that fit this plan</h2>
+      <h2><span class="step">4</span>Generators that fit this plan</h2>
       <p class="muted" id="targetText"></p>
       <div id="matchList"></div>
     </section>
@@ -171,6 +176,18 @@
   </aside>
 </div>
 
+<div id="circuitModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+  <div class="modal-card">
+    <h2 id="cmTitle">All circuits are in use</h2>
+    <p id="cmText"></p>
+    <div id="cmList" class="cm-list"></div>
+    <div class="cm-actions">
+      <button class="btn btn-primary" id="cmUpgrade">Use a bigger transfer switch</button>
+      <button class="btn btn-small" id="cmCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="intro" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
   <div class="modal-card">
     <h2 id="introTitle">Will your generator power your home?</h2>
@@ -184,10 +201,10 @@
   </div>
 </div>
 
-<script src="data/generators.js?v=2.1"></script>
-<script src="data/equipment.js?v=2.1"></script>
-<script src="data/appliances.js?v=2.1"></script>
-<script src="js/engine.js?v=2.1"></script>
-<script type="module" src="js/app.js?v=2.1"></script>
+<script src="data/generators.js?v=2.3"></script>
+<script src="data/equipment.js?v=2.3"></script>
+<script src="data/appliances.js?v=2.3"></script>
+<script src="js/engine.js?v=2.3"></script>
+<script type="module" src="js/app.js?v=2.3"></script>
 </body>
 </html>

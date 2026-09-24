@@ -35,7 +35,7 @@ Pick a generator and fuel, choose how it connects, then flip breakers (in the pa
   - Every appliance start-up is checked against the generator's starting (peak) watts.
 - **Three connection types**:
   - **Interlock kit:** the whole panel is available.
-  - **Transfer switch:** only wired circuits can be powered. A 120V circuit uses 1 slot and a 240V circuit uses 2.
+  - **Transfer switch:** switching an appliance on connects it to the switch. A 120V appliance uses 1 circuit and a 240V appliance uses 2. When every circuit is in use, a dialog lets you switch another appliance off (the new one then turns on) or move up to a bigger switch.
   - **Extension cords:** 120V appliances only.
 - **Bonded vs floating neutral guidance** for each model, taken from the DuroMax owner's manuals.
 - **AirGo soft starter toggle** for the central A/C. It removes 50% of the start-up surge, the sizing guide's planning value. Set this in `data/appliances.js`.
