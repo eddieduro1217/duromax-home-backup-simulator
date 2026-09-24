@@ -3,7 +3,7 @@
 // Local axes: length = X (engine end at -X, control-panel end at +X), width = Z (front face at +Z), up = Y.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { nameplate, badge, controlPanel, inverterSide, louver } from '../textures.js';
+import { nameplate, badge, controlPanel, inverterSide, louver } from '../textures.js?v=2.1';
 
 const IN = 0.0254;
 const M = {

@@ -1,5 +1,5 @@
 // UI + state for the Home Backup Power Simulator.
-import { createHouse } from './house.js';
+import { createHouse } from './house.js?v=2.1';
 
 const E = window.Engine;
 const GENS = window.GENERATORS;
@@ -46,7 +46,23 @@ function applyAc() {
 }
 
 // ---------------- 3D ----------------
-const house = createHouse($('scene'), { onClick: id => toggle(id), onHover: showTooltip });
+// If WebGL isn't available the calculator still works; the 3D view shows a message instead.
+function webglOk() { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return false; } }
+const noop = () => {};
+const houseStub = { setApplianceState: noop, setGenerator: noop, setGeneratorModel: noop, setConnection: noop, setSoftStarter: noop, setNight: noop, setView: noop, ids: [] };
+let house = houseStub;
+if (webglOk()) {
+  try { house = createHouse($('scene'), { onClick: id => toggle(id), onHover: showTooltip }); }
+  catch (e) { console.error(e); house = houseStub; }
+}
+if (house === houseStub) {
+  const d = document.createElement('div'); d.className = 'gl-fallback';
+  d.innerHTML = '<strong>3D view unavailable</strong><span>This browser or device has 3D graphics turned off. The calculator on the right still works.</span>';
+  $('viewport').appendChild(d);
+}
+// Never let one unexpected error blank the page: log it and keep the UI responsive.
+window.addEventListener('error', e => { console.error('Simulator error:', e.message); });
+window.addEventListener('unhandledrejection', e => { console.error('Simulator error:', e.reason); });
 requestAnimationFrame(() => setTimeout(() => $('loading').classList.add('done'), 300));
 
 // ---------------- actions ----------------
@@ -61,9 +77,12 @@ function selectGenerator(model) {
   revalidate();
 }
 function revalidate() {
+  // Called after the generator, fuel, connection, switch wiring, A/C size or soft starter changes.
   const live = liveSet();
   const r = E.checkLoad(APPS, live, cap(), opts());
-  if (!r.ok && live.size) trip(r.message); else render();
+  if (!r.ok && live.size) { trip(r.message); return; }        // new setup can't carry the load: (re)trip with a current explanation
+  if (state.tripped) { state.tripped = null; toast('The new setup can carry these loads, so the generator breaker was reset.'); }
+  render();
 }
 function trip(message) { state.tripped = { message }; render(); }
 function resetBreaker() {

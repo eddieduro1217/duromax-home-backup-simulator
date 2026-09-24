@@ -3,16 +3,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { tex, roundRect } from './textures.js';
-import { buildGenerator } from './models/generator.js';
-import { buildEV } from './models/ev.js';
+import { tex, roundRect } from './textures.js?v=2.1';
+import { buildGenerator } from './models/generator.js?v=2.1';
+import { buildEV } from './models/ev.js?v=2.1';
 
 const GEN_POS = new THREE.Vector3(14.2, 0.02, -3.2);
 const INLET_POS = new THREE.Vector3(8.1, 0.62, -3.5);
 
 export function createHouse(container, { onClick, onHover } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+  renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -435,6 +436,8 @@ export function createHouse(container, { onClick, onHover } = {}) {
   function setGeneratorModel(g) {
     if (gen && gen.model === g.model) return;
     gen = g;
+    // free the previous model's GPU memory (shared canvas textures are cached and kept)
+    genGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } });
     genGroup.clear();
     const built = buildGenerator(g);
     genBody = built.group; genLed = built.led;
@@ -443,7 +446,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
     genLabel.position.set(genBase.x, built.size.H + 0.75, genBase.z);
     genLabel.userData.set(g.model);
     // cord from the panel end of the generator to the inlet box on the garage wall
-    if (cordMesh) scene.remove(cordMesh);
+    if (cordMesh) { scene.remove(cordMesh); cordMesh.geometry.dispose(); }
     const start = new THREE.Vector3(genBase.x + built.size.L * 0.2, built.size.H * 0.45, genBase.z + built.size.W / 2);
     cordMesh = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([start, new THREE.Vector3(start.x - 0.4, 0.06, start.z + 0.5), new THREE.Vector3(11.5, 0.05, -2.6), new THREE.Vector3(9.2, 0.05, -3.3), new THREE.Vector3(8.5, 0.1, -3.5), INLET_POS]), 80, 0.03, 8), cordM);
     cordMesh.castShadow = true; scene.add(cordMesh);
@@ -506,7 +509,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
 
   // ---------- interaction ----------
   const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
-  let downAt = null, hoverId = null, hovered = null;
+  let downAt = null, hoverId = null;
   function pick(ev) {
     const r = renderer.domElement.getBoundingClientRect();
     ptr.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
@@ -523,10 +526,6 @@ export function createHouse(container, { onClick, onHover } = {}) {
     if (e.pointerType === 'touch') return;
     const id = pick(e);
     renderer.domElement.style.cursor = id ? 'pointer' : 'grab';
-    if (id !== hoverId) {
-      if (hovered) hovered.group.traverse(o => { if (o.isMesh && o.userData.prevEm !== undefined) { o.material.emissive && o.material.emissive.setHex(o.userData.prevEm); delete o.userData.prevEm; } });
-      hovered = null;
-    }
     hoverId = id; onHover && onHover(id, e);
   });
   renderer.domElement.addEventListener('pointerleave', () => { hoverId = null; onHover && onHover(null); });
@@ -538,9 +537,37 @@ export function createHouse(container, { onClick, onHover } = {}) {
     camera.fov = camera.aspect < 0.9 ? 60 : 40; camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(container); resize();
+
+  // Graphics context loss (GPU reset, driver hiccup, too many tabs): show a message instead of a blank view.
+  let lost = false;
+  renderer.domElement.addEventListener('webglcontextlost', e => {
+    e.preventDefault(); lost = true;
+    if (!container.querySelector('.gl-fallback')) {
+      const d = document.createElement('div'); d.className = 'gl-fallback';
+      d.innerHTML = '<strong>3D view paused</strong><span>Your browser reset its graphics. Your settings are safe - reload to bring the 3D home back.</span><button class="btn btn-primary" type="button">Reload 3D view</button>';
+      d.querySelector('button').onclick = () => location.reload();
+      container.appendChild(d);
+    }
+  });
+  renderer.domElement.addEventListener('webglcontextrestored', () => { lost = false; const d = container.querySelector('.gl-fallback'); if (d) d.remove(); });
+
+  // Adaptive quality: if frames are slow for a few seconds, drop resolution, then soft shadows.
+  let slowFrames = 0, quality = 2;
+  function adapt(dt) {
+    if (quality === 0) return;
+    slowFrames = dt > 0.045 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+    if (slowFrames > 90) {
+      slowFrames = 0; quality -= 1;
+      if (quality === 1) { pixelRatio = 1; renderer.setPixelRatio(1); resize(); }
+      else { renderer.shadowMap.type = THREE.BasicShadowMap; sun.shadow.mapSize.set(1024, 1024); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    }
+  }
+
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
-    const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+    if (lost) return;
+    const raw = clock.getDelta(), dt = Math.min(raw, 0.05), t = clock.elapsedTime;
+    if (document.visibilityState === 'visible') adapt(raw);
     for (const id in appliances) { const a = appliances[id]; if (a.anim) a.anim(t, a.state === 'on', dt); }
     const running = genRunning && !tripped;
     if (genBody) {
