@@ -278,3 +278,17 @@ details > summary::-webkit-details-marker { display: none; }
   .pb-stat b { font-size: 16px; }
   .pb-title span { display: block; margin: 2px 0 0; }
 }
+
+/* v2.4: home details, fuel step, generator-in-simulator block */
+.home-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 8px; }
+.home-grid .field { margin-top: 0; }
+.home-grid select { width: 100%; }
+#homeHint, #fuelHint { margin: 8px 0 0; }
+.btn-try { background: var(--cta); border-color: var(--cta); color: #fff; border-radius: 10px; font-weight: 700; }
+.btn-try:hover { filter: brightness(1.06); background: var(--cta); color: #fff; }
+.m-now { font-size: 11px; font-weight: 700; color: var(--dm-blue); text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+.btn-link { background: none; border: 0; color: var(--dm-blue); font-weight: 700; padding: 8px 0 0; cursor: pointer; font-size: 13px; }
+.btn-link:hover { text-decoration: underline; }
+.onscreen { margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--dm-blue); }
+.onscreen-label { font-family: var(--font-head); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--dm-blue); margin-bottom: 6px; }
+@media (max-width: 420px) { .home-grid { grid-template-columns: 1fr 1fr; } .home-grid .field:first-child { grid-column: 1 / -1; } }

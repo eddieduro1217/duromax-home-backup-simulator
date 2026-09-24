@@ -13,6 +13,10 @@ _ov = json.load(open(os.path.join(SRC, 'overrides.json')))
 for g in gens:
     g.update(_ov.get(g['model'], {}))
 
+# Models left out of the simulator (per DuroMax, Sept 2026).
+EXCLUDE = {'XP4850EH', 'XP10000X', 'DS10000EH', 'XP11500EH', 'XP15000HX', 'XP15000HXT'}
+gens = [g for g in gens if g['model'] not in EXCLUDE]
+
 OUTLET_CAP = {'14-50R': 12000, 'L14-30R': 7200}   # 50A x 240V, 30A x 240V
 
 def best_outlet(g):

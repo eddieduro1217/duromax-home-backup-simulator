@@ -45,9 +45,22 @@ assert.strictEqual(t.running, expected);
 }
 // Sizing-guide fuel override applied
 assert.strictEqual(g('XP13000HXT').fuels.Propane.running, 9500);
-// XP4850EH (3,850 run) can physically run the essentials (3,730 W) but has no 20% reserve -> not recommended
-assert.strictEqual(E.checkLoad(APPS, ess, E.capacity(g('XP4850EH'), 'Gasoline', 'interlock'), opts).ok, true);
-assert.strictEqual(E.qualify(g('XP4850EH'), 'Gasoline', 'interlock', E.targets(APPS, ess, opts, 0.2)).ok, false);
+// Models removed from the simulator are gone
+for (const m of ['XP4850EH', 'XP10000X', 'DS10000EH', 'XP11500EH', 'XP15000HX', 'XP15000HXT']) assert.ok(!g(m), m + ' should be removed');
+// A generator that can run a load but has no 20% reserve is not recommended
+{
+  const tight = { model: 'T', bestOutlet: 'L14-30R', outletCapW: 7200, fuels: { Gasoline: { running: expected + 100, starting: 99999 } } };
+  assert.strictEqual(E.checkLoad(APPS, ess, E.capacity(tight, 'Gasoline', 'interlock'), opts).ok, true);
+  assert.strictEqual(E.qualify(tight, 'Gasoline', 'interlock', E.targets(APPS, ess, opts, 0.2)).ok, false);
+}
+// Auto connection: 50A/30A outlet -> home inlet; no 240V outlet -> extension cords, which can't carry a 240V plan
+assert.strictEqual(E.autoConnection(g('XP13000HX')), 'interlock');
+assert.strictEqual(E.autoConnection(g('XP2300iH')), 'cords');
+{
+  const tg = E.targets(APPS, ess, opts, 0.2);   // essentials include the 240V well pump
+  const m = E.matchGenerators(GENS, 'Gasoline', 'auto', tg, true);
+  assert.ok(m.length && m.every(x => x.conn === 'interlock'));
+}
 // XP13000HX can
 assert.strictEqual(E.checkLoad(APPS, ess, E.capacity(g('XP13000HX'), 'Gasoline', 'interlock'), opts).ok, true);
 // 3-ton central AC (10,300 W start) on XP9500iH (9,500 peak) fails without soft start, passes with it (7,050 W)

@@ -2,7 +2,15 @@
 
 An interactive 3D home that shows which appliances a DuroMax or DuroStar portable generator can power when it is connected to the house through an **interlock kit**, a **transfer switch**, or **extension cords**.
 
-Pick a generator and fuel, choose how it connects, then flip breakers (in the panel list or by clicking appliances in the house) to see what runs, what trips the generator breaker, and roughly how long the fuel lasts.
+Enter your home details and preferred fuel, switch on what you need (presets, the breaker list, or by clicking appliances in the house), then pick from the generators that fit the plan with **Try it** to see what runs, what trips the generator breaker, and roughly how long the fuel lasts.
+
+## What's new in v2.4
+
+- **New step order:** 1 Home details (square feet, bedrooms, bathrooms) · 2 Preferred fuel source · 3 Switch on appliances · 4 Generators that fit this plan (with Try it).
+- Square feet suggests the central A/C size; bedrooms and bathrooms set the LED bulb and ceiling fan counts (`window.HOME` in `data/appliances.js`).
+- No generator or connection picker. Each generator connects automatically through its 50A (14-50R) or 30A (L14-30R) outlet and a power inlet, or with extension cords (120V only) if it has neither. The simulator starts with the best fit for the Essentials plan.
+- Choosing natural gas while a dual fuel model is in the simulator switches to the best-fitting tri fuel model.
+- Removed models: XP4850EH, XP10000X, DS10000EH, XP11500EH, XP15000HX, XP15000HXT (`EXCLUDE` in `tools/build_data.py`).
 
 ## What's new in v2
 
@@ -29,21 +37,18 @@ Pick a generator and fuel, choose how it connects, then flip breakers (in the pa
 
 ## Features
 
-- **33 current generators**: 28 DuroMax and 5 DuroStar. Each has running and starting watts for gasoline, propane and natural gas, plus outlets, neutral type and links to its product page and owner's manual.
+- **27 generators** (DuroMax and DuroStar). Each has running and starting watts for gasoline, propane and natural gas, plus outlets, neutral type and links to its product page and owner's manual.
 - **Realistic limits**:
   - Running watts are capped by the generator's rating and by the cord and inlet: 30A = 7,200 W, 50A = 12,000 W.
   - Every appliance start-up is checked against the generator's starting (peak) watts.
-- **Three connection types**:
-  - **Interlock kit:** the whole panel is available.
-  - **Transfer switch:** switching an appliance on connects it to the switch. A 120V appliance uses 1 circuit and a 240V appliance uses 2. When every circuit is in use, a dialog lets you switch another appliance off (the new one then turns on) or move up to a bigger switch.
-  - **Extension cords:** 120V appliances only.
+- **Automatic connection:** 50A or 30A outlet through a power inlet and interlock kit (whole panel available), or extension cords (120V appliances only) for models without either outlet.
 - **Bonded vs floating neutral guidance** for each model, taken from the DuroMax owner's manuals.
 - **AirGo soft starter toggle** for the central A/C. It removes 50% of the start-up surge, the sizing guide's planning value. Set this in `data/appliances.js`.
 - **Generator breaker trips on overload**, with a plain-language explanation and a reset button.
 - **Estimated runtime** at the current load, interpolated from each model's published 25% and 50% load runtimes.
 - **Equipment list** for each setup, with links to the store: inlet box, cord, transfer switch or interlock kit, and soft starter.
 - Day/night view, camera presets and a mobile layout.
-- Deep links, for example `index.html?model=XP13000HXT&fuel=Propane&conn=transfer`.
+- Deep links, for example `index.html?model=XP13000HXT&fuel=Propane&sqft=1900&bed=4&bath=2.5`.
 
 ## Run it
 

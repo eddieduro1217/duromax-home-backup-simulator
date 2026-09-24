@@ -52,11 +52,11 @@ window.CENTRAL_AC = {
   default: 3,
   tons: {
     1.5: { running: 2000, starting: 5100,  rla: 7.8,  homeSqFt: null },
-    2:   { running: 2400, starting: 6100,  rla: 9.6,  homeSqFt: '1,000 - 1,400 sq ft' },
-    2.5: { running: 3100, starting: 7900,  rla: 12.4, homeSqFt: '1,000 - 1,900 sq ft' },
-    3:   { running: 3800, starting: 10300, rla: 15.4, homeSqFt: '1,500 - 1,900 sq ft' },
-    3.5: { running: 4300, starting: 13000, rla: 16.9, homeSqFt: '1,900 - 2,200 sq ft' },
-    4:   { running: 5000, starting: 14300, rla: 19.5, homeSqFt: '2,200 - 2,600 sq ft' },
+    2:   { running: 2400, starting: 6100,  rla: 9.6,  homeSqFt: '1,000 - 1,400' },
+    2.5: { running: 3100, starting: 7900,  rla: 12.4, homeSqFt: '1,000 - 1,900' },
+    3:   { running: 3800, starting: 10300, rla: 15.4, homeSqFt: '1,500 - 1,900' },
+    3.5: { running: 4300, starting: 13000, rla: 16.9, homeSqFt: '1,900 - 2,200' },
+    4:   { running: 5000, starting: 14300, rla: 19.5, homeSqFt: '2,200 - 2,600' },
     5:   { running: 5700, starting: 16400, rla: 22.8, homeSqFt: 'over 2,600 sq ft' },
   },
   lraFactor: 0.49,
@@ -73,4 +73,26 @@ window.PRESETS = {
             'tv', 'security', 'fans', 'microwave', 'coffee', 'windowac', 'washer', 'gasdryer'],
   wholehome: ['fridge', 'freezer', 'lights', 'internet', 'furnace', 'sump', 'well', 'smoke', 'cpap', 'oxygen',
             'tv', 'security', 'fans', 'microwave', 'centralac'],
+};
+
+// Home details (step 1). Square footage suggests the central A/C size (the sizing guide's
+// "Home Sq. Ft Guidelines", about 1 ton per 400-500 sq ft). Bedrooms and bathrooms set how many
+// LED bulbs and ceiling fans are counted. Defaults (1,700-1,900 sq ft, 3 bed, 2 bath) match the
+// guide's reference values: 3-ton A/C and 10 essential LED bulbs.
+window.HOME = {
+  sqft: [
+    { id: 'u1000', label: 'Under 1,000',     ton: 1.5 },
+    { id: '1000',  label: '1,000 - 1,400',   ton: 2 },
+    { id: '1400',  label: '1,400 - 1,700',   ton: 2.5 },
+    { id: '1700',  label: '1,700 - 1,900',   ton: 3 },
+    { id: '1900',  label: '1,900 - 2,200',   ton: 3.5 },
+    { id: '2200',  label: '2,200 - 2,600',   ton: 4 },
+    { id: '2600',  label: 'Over 2,600',      ton: 5 },
+  ],
+  bedrooms: [1, 2, 3, 4, 5],          // 5 = "5 or more"
+  bathrooms: [1, 1.5, 2, 2.5, 3, 3.5, 4],  // 4 = "4 or more"
+  defaults: { sqft: '1700', bedrooms: 3, bathrooms: 2 },
+  bulbWatts: 15,                      // guide: 10 LED bulbs = 150 W
+  bulbs: (bed, bath) => 2 + 2 * bed + Math.ceil(bath),   // living/kitchen + 2 per bedroom + 1 per bathroom
+  fanWatts: 75,                       // one ceiling fan per bedroom
 };

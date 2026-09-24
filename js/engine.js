@@ -130,10 +130,20 @@
     return { status, ok: meetsRun && meetsPeak, meetsRun, meetsPeak, cap };
   }
 
-  /** All generators that qualify, smallest first. */
-  function matchGenerators(gens, fuelName, connection, tg) {
+  /** Default home connection: the generator's 50A (14-50R) or 30A (L14-30R) outlet through a power inlet,
+   *  or extension cords (120V only) when it has neither. */
+  function autoConnection(gen) { return gen && gen.bestOutlet ? 'interlock' : 'cords'; }
+
+  /** All generators that qualify, smallest first.
+   *  connection 'auto' uses each generator's own default connection; has240 = the plan includes a 240V appliance
+   *  (cord-only generators can't run those). */
+  function matchGenerators(gens, fuelName, connection, tg, has240) {
     if (!tg.running) return [];
-    return gens.map(g => ({ gen: g, q: qualify(g, fuelName, connection, tg) }))
+    return gens.map(g => {
+      const conn = connection === 'auto' ? autoConnection(g) : connection;
+      if (conn === 'cords' && has240) return { gen: g, conn, q: { status: 'NEEDS 240V', ok: false } };
+      return { gen: g, conn, q: qualify(g, fuelName, conn, tg) };
+    })
       .filter(x => x.q.ok)
       .sort((a, b) => (a.gen.fuels[fuelName].running - b.gen.fuels[fuelName].running) || ((a.gen.price || 1e9) - (b.gen.price || 1e9)));
   }
@@ -147,6 +157,6 @@
   }
 
   const Engine = { effectiveStarting, circuitSlots, slotsUsed, capacity, blockedReason, totals, checkLoad, checkTurnOn, runtimeHours, fmt,
-    ceil100, targets, qualify, matchGenerators, acFromNameplate };
+    ceil100, targets, qualify, autoConnection, matchGenerators, acFromNameplate };
   if (typeof module !== 'undefined' && module.exports) module.exports = Engine; else root.Engine = Engine;
 })(typeof window !== 'undefined' ? window : globalThis);

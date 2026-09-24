@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { tex, roundRect } from './textures.js?v=2.3';
-import { buildGenerator } from './models/generator.js?v=2.3';
-import { buildEV } from './models/ev.js?v=2.3';
+import { tex, roundRect } from './textures.js?v=2.4';
+import { buildGenerator } from './models/generator.js?v=2.4';
+import { buildEV } from './models/ev.js?v=2.4';
 
 const GEN_POS = new THREE.Vector3(14.2, 0.02, -3.2);
 const INLET_POS = new THREE.Vector3(8.1, 0.62, -3.5);

@@ -1,5 +1,5 @@
 // UI + state for the Home Backup Power Simulator.
-import { createHouse } from './house.js?v=2.3';
+import { createHouse } from './house.js?v=2.4';
 
 const E = window.Engine;
 const GENS = window.GENERATORS;
@@ -11,51 +11,37 @@ const $ = id => document.getElementById(id);
 const fmt = E.fmt;
 const RED = window.SOFT_START_REDUCTION, HEADROOM = window.HEADROOM;
 
+const HOME = window.HOME;
 const state = {
-  brand: 'All', model: 'XP13000HX', fuel: 'Gasoline', conn: 'interlock', ts: null, dist: 25,
+  model: null, fuel: 'Gasoline', conn: 'interlock',
+  sqft: HOME.defaults.sqft, bedrooms: HOME.defaults.bedrooms, bathrooms: HOME.defaults.bathrooms,
   on: new Set(window.PRESETS.essentials), softStart: false, tripped: null, night: true,
-  ton: AC.default, nameplate: null,
+  ton: AC.default, nameplate: null, showAll: false,
 };
 
 // ---------------- helpers ----------------
 const gen = () => GENS.find(g => g.model === state.model);
 const fuelSpec = () => gen().fuels[state.fuel];
-const tsObj = () => EQ.transferSwitches.find(t => t.sku === state.ts) || null;
 const opts = () => ({ softStart: state.softStart, reduction: RED });
-const cap = () => E.capacity(gen(), state.fuel, state.conn, tsObj());
+const cap = () => E.capacity(gen(), state.fuel, state.conn);
 const ampsFor = g => g.bestOutlet === '14-50R' ? 50 : g.bestOutlet === 'L14-30R' ? 30 : 0;
 const imgUrl = (u, w) => u ? u + (u.includes('?') ? '&' : '?') + 'width=' + w : '';
 const blocked = id => E.blockedReason(APP[id], state.conn);
 const liveSet = () => new Set([...state.on].filter(id => !blocked(id)));
 function compatibleSwitches(g) { const a = ampsFor(g); return EQ.transferSwitches.filter(t => t.amps === a && (t.circuits || 0) >= 6); }
-// Transfer switch: an appliance is connected to the switch as soon as it's switched on.
-const usedSlots = () => E.slotsUsed(APPS, state.on);
-function slotLimit() { const t = tsObj(); return t ? t.circuits : 0; }
-const slotsFor = id => E.circuitSlots(APP[id]);
-const circuitsWord = n => n === 1 ? '1 circuit' : `${n} circuits`;
-// Priority when a switch can't fit everything: medical first, then essentials, then the rest.
-function priorityOrder(ids) {
-  const rank = id => APP[id].tag === 'Medical' ? 0 : window.PRESETS.essentials.includes(id) ? 1 : 2;
-  return [...ids].sort((a, b) => rank(a) - rank(b) || window.PRESETS.essentials.indexOf(a) - window.PRESETS.essentials.indexOf(b));
+const has240 = () => [...state.on].some(id => APP[id].volts === 240);
+function applyHome() {
+  // Bedrooms and bathrooms set the lighting and ceiling-fan loads.
+  const n = HOME.bulbs(state.bedrooms, state.bathrooms), fans = state.bedrooms;
+  Object.assign(APP.lights, { running: n * HOME.bulbWatts, starting: n * HOME.bulbWatts, name: `Essential LED Lights (${n} bulbs)` });
+  Object.assign(APP.fans, { running: fans * HOME.fanWatts, starting: fans * HOME.fanWatts, name: `Ceiling Fans (${fans})` });
 }
-/** Keep only what fits on the transfer switch; returns the appliances that were left off. */
-function fitToSwitch() {
-  if (state.conn !== 'transfer') return [];
-  const kept = new Set(), dropped = [];
-  let used = 0;
-  for (const id of priorityOrder(state.on)) { if (used + slotsFor(id) <= slotLimit()) { kept.add(id); used += slotsFor(id); } else dropped.push(id); }
-  state.on = kept;
-  return dropped;
-}
-function reportDropped(dropped) {
-  if (!dropped.length) return;
-  const names = dropped.map(id => APP[id].name).join(', ');
-  const bigger = biggerSwitch();
-  toast(`The ${state.ts} has ${slotLimit()} circuits, so these were left off: ${names}.${bigger ? ` The ${bigger.sku} (${bigger.circuits} circuits) would fit more.` : ''}`);
-}
-function biggerSwitch() {
-  const cur = slotLimit();
-  return compatibleSwitches(gen()).filter(t => t.circuits > cur).sort((a, b) => a.circuits - b.circuits || (b.available !== false) - (a.available !== false))[0] || null;
+/** Smallest generator that fits the current plan on the current fuel (or the largest on that fuel if none fits). */
+function bestFit() {
+  const m = E.matchGenerators(GENS, state.fuel, 'auto', E.targets(APPS, state.on, opts(), HEADROOM), has240());
+  if (m.length) return m[0].gen;
+  const onFuel = GENS.filter(g => g.fuels[state.fuel] && g.bestOutlet);
+  return onFuel.sort((a, b) => b.fuels[state.fuel].running - a.fuels[state.fuel].running)[0] || GENS[0];
 }
 const isPowered = id => state.on.has(id) && !state.tripped && !blocked(id);
 function acRla() { return state.nameplate ? state.nameplate.rla : AC.tons[state.ton].rla; }
@@ -90,15 +76,12 @@ function selectGenerator(model) {
   state.model = model;
   const g = gen();
   if (!g.fuels[state.fuel]) state.fuel = Object.keys(g.fuels)[0];
-  if (!g.bestOutlet) state.conn = 'cords';
-  const sw = compatibleSwitches(g);
-  if (!sw.find(t => t.sku === state.ts)) state.ts = (sw.find(t => t.circuits === 10 && t.available) || sw.find(t => t.circuits === 10) || sw[0] || {}).sku || null;
-  reportDropped(fitToSwitch());
+  state.conn = E.autoConnection(g);   // 50A or 30A outlet through a power inlet; extension cords if it has neither
   house.setGeneratorModel(g);
   revalidate();
 }
 function revalidate() {
-  // Called after the generator, fuel, connection, switch wiring, A/C size or soft starter changes.
+  // Called after the generator, fuel, home details, A/C size or soft starter changes.
   const live = liveSet();
   const r = E.checkLoad(APPS, live, cap(), opts());
   if (!r.ok && live.size) { trip(r.message); return; }        // new setup can't carry the load: (re)trip with a current explanation
@@ -119,10 +102,6 @@ function toggle(id, silent) {
   const b = blocked(id);
   if (b) { flashRow(id); if (!silent) toast(a.name + ': ' + b + '.'); return false; }
   if (state.tripped) { flashBanner(); toast('Reset the generator breaker first.'); return false; }
-  if (state.conn === 'transfer') {
-    const need = slotsFor(id) + (a.needs && !state.on.has(a.needs) ? slotsFor(a.needs) : 0);
-    if (usedSlots() + need > slotLimit()) { openCircuitDialog(id, need); return false; }
-  }
   if (a.needs && !state.on.has(a.needs) && !blocked(a.needs)) {
     if (!toggle(a.needs, true)) return false;
     if (state.tripped) return false;
@@ -136,65 +115,24 @@ function toggle(id, silent) {
 function applyPreset(name) {
   state.on = new Set(name === 'off' ? [] : window.PRESETS[name]);
   state.tripped = null;
-  reportDropped(fitToSwitch());
   revalidate();
-}
-
-// ---------------- "all circuits in use" dialog ----------------
-let pending = null;   // { id, need }
-function openCircuitDialog(id, need) {
-  pending = { id, need };
-  renderCircuitDialog();
-  $('circuitModal').classList.remove('hidden');
-}
-function closeCircuitDialog() { pending = null; $('circuitModal').classList.add('hidden'); }
-function renderCircuitDialog() {
-  if (!pending) return;
-  const a = APP[pending.id], lim = slotLimit(), free = lim - usedSlots();
-  const still = Math.max(0, pending.need - free);
-  $('cmTitle').textContent = `All ${lim} circuits are in use`;
-  $('cmText').innerHTML = `The <b>${state.ts}</b> transfer switch has ${lim} circuits. <b>${a.name}</b> needs ${circuitsWord(pending.need)}${a.needs && !state.on.has(a.needs) ? ' (including the indoor blower it runs with)' : ''}. ` +
-    `Switch off ${still > 1 ? `appliances to free ${circuitsWord(still)}` : 'one appliance'} below and ${a.name.split(' (')[0]} will turn on automatically.` +
-    `<br><span class="muted small">Your electrician chooses which circuits go on the transfer switch at installation. This shows what fits.</span>`;
-  $('cmList').innerHTML = priorityOrder(state.on).reverse().map(x => `<div class="cm-row"><div><b>${APP[x].name}</b><span class="muted small">${circuitsWord(slotsFor(x))} · ${fmt(APP[x].running)} W${APP[x].tag ? ' · ' + APP[x].tag : ''}</span></div>
-      <button class="btn btn-small" data-free="${x}">Switch off</button></div>`).join('');
-  const bigger = biggerSwitch();
-  $('cmUpgrade').classList.toggle('hidden', !bigger);
-  if (bigger) $('cmUpgrade').textContent = `Use the ${bigger.sku} (${bigger.circuits} circuits) instead`;
-}
-function freeCircuit(x) {
-  state.on.delete(x);
-  const { id, need } = pending;
-  if (slotLimit() - usedSlots() >= need) { closeCircuitDialog(); render(); toggle(id); }
-  else { render(); renderCircuitDialog(); }
-}
-function upgradeSwitch() {
-  const bigger = biggerSwitch(); if (!bigger || !pending) return;
-  const { id } = pending; state.ts = bigger.sku;
-  closeCircuitDialog(); render();
-  toast(`Switched to the ${bigger.sku} transfer switch (${bigger.circuits} circuits).`);
-  toggle(id);
 }
 
 // ---------------- rendering ----------------
 function render() {
-  applyAc();
-  renderGenSelect(); renderProduct(); renderFuel(); renderSpecs(); renderConnection(); renderAc(); renderMeter(); renderPanel(); renderMatches(); renderBanner(); sync3D();
+  applyAc(); applyHome();
+  renderHome(); renderFuel(); renderProduct(); renderSpecs(); renderConnection(); renderAc(); renderMeter(); renderPanel(); renderMatches(); renderBanner(); sync3D();
 }
 
-function renderGenSelect() {
-  const sel = $('genSelect');
-  const list = GENS.filter(g => state.brand === 'All' || g.brand === state.brand);
-  if (!list.find(g => g.model === state.model)) state.model = list[0].model;
-  const typeName = { 'Conventional open frame': 'Open frame', 'Inverter': 'Inverter', 'Open frame inverter': 'Open frame inverter' };
-  const groups = {};
-  for (const g of list) (groups[typeName[g.type] || g.type] ||= []).push(g);
-  const html = Object.entries(groups).map(([type, gs]) => `<optgroup label="${type} generators">` +
-    gs.sort((a, b) => a.fuels.Gasoline.running - b.fuels.Gasoline.running)
-      .map(g => `<option value="${g.model}">${g.brand} ${g.model} · ${fmt(g.fuels.Gasoline.starting)} W ${g.fuelConfig}${g.bestOutlet ? '' : ' (120V only)'}</option>`).join('') + '</optgroup>').join('');
-  if (sel.dataset.sig !== state.brand) { sel.innerHTML = html; sel.dataset.sig = state.brand; }
-  sel.value = state.model;
-  document.querySelectorAll('#brandSeg button').forEach(b => b.classList.toggle('on', b.dataset.brand === state.brand));
+function renderHome() {
+  const fill = (el, items) => { if (!el.options.length) el.innerHTML = items.map(([v, t]) => `<option value="${v}">${t}</option>`).join(''); };
+  fill($('sqftSelect'), HOME.sqft.map(o => [o.id, o.label]));
+  const last = (arr, v) => v === arr[arr.length - 1] ? `${v} or more` : String(v);
+  fill($('bedSelect'), HOME.bedrooms.map(v => [v, last(HOME.bedrooms, v)]));
+  fill($('bathSelect'), HOME.bathrooms.map(v => [v, last(HOME.bathrooms, v)]));
+  $('sqftSelect').value = state.sqft; $('bedSelect').value = String(state.bedrooms); $('bathSelect').value = String(state.bathrooms);
+  const acTxt = state.nameplate ? 'your A/C nameplate' : `a ${state.ton}-ton central A/C`;
+  $('homeHint').textContent = `We'll plan for ${acTxt}, ${APP.lights.name.match(/\d+/)[0]} LED bulbs and ${state.bedrooms} ceiling fan${state.bedrooms === 1 ? '' : 's'}. You can fine-tune everything in step 3.`;
 }
 
 function renderProduct() {
@@ -211,9 +149,12 @@ function renderProduct() {
 }
 
 function renderFuel() {
-  const g = gen();
-  $('fuelSeg').innerHTML = ['Gasoline', 'Propane', 'Natural Gas'].map(f =>
-    `<button data-fuel="${f}" class="${state.fuel === f ? 'on' : ''}" ${g.fuels[f] ? '' : 'disabled title="Not available on this model"'}>${f}</button>`).join('');
+  document.querySelectorAll('#fuelSeg button').forEach(b => b.classList.toggle('on', b.dataset.fuel === state.fuel));
+  $('fuelHint').textContent = {
+    Gasoline: 'Gasoline gives the most power. Every dual fuel and tri fuel model runs on it.',
+    Propane: 'Propane stores for years without going stale but makes a little less power than gasoline. Every dual fuel and tri fuel model runs on it.',
+    'Natural Gas': 'Natural gas runs from your home\'s gas line, so there\'s no refueling. Only tri fuel models run on it, and output is lower than gasoline.',
+  }[state.fuel];
 }
 
 function renderSpecs() {
@@ -228,52 +169,35 @@ function renderSpecs() {
 }
 
 function renderConnection() {
-  const g = gen();
-  document.querySelectorAll('#connSeg button').forEach(b => { b.classList.toggle('on', b.dataset.conn === state.conn); b.disabled = !g.bestOutlet && b.dataset.conn !== 'cords'; });
-  $('connDesc').textContent = {
-    interlock: 'Uses your existing breaker panel. The interlock holds the main breaker off while the generator breaker is on, so every circuit is available and you choose what runs.',
-    transfer: 'A transfer switch powers a set number of circuits. Each appliance you switch on uses one circuit (240V appliances use two). An electrician wires your chosen circuits to the switch.',
-    cords: 'Plug appliances straight into the generator. 240V appliances such as the well pump, water heater, range, electric dryer and central A/C can\'t run this way.',
-  }[state.conn];
-  const sw = compatibleSwitches(g), isTs = state.conn === 'transfer';
-  $('tsField').classList.toggle('hidden', !isTs); $('tsSlots').classList.toggle('hidden', !isTs);
-  if (isTs) {
-    $('tsSelect').innerHTML = sw.map(t => `<option value="${t.sku}">Reliance ${t.sku} · ${t.circuits} circuits · ${t.amps}A · ${t.location}${t.available === false ? ' (out of stock)' : ''}</option>`).join('');
-    $('tsSelect').value = state.ts;
-    const lim = slotLimit(), pips = [];
-    for (const id of priorityOrder(state.on)) for (let k = 0; k < slotsFor(id); k++) pips.push(APP[id].name);
-    $('tsSlots').innerHTML = `<b>Circuits used: ${pips.length} of ${lim}</b> · ${state.ts} transfer switch<br><span class="muted small">Your electrician chooses the final circuits at installation. This shows what fits.</span>` +
-      `<div class="pips">${Array.from({ length: lim }, (_, i) => `<span class="pip ${i < pips.length ? 'used' : ''}" title="${pips[i] || 'Free circuit'}"></span>`).join('')}</div>`;
-  }
+  const g = gen(), a = ampsFor(g);
+  $('connDesc').textContent = state.conn === 'cords'
+    ? 'This model has no 30A or 50A outlet, so it can\'t connect to your home panel. Appliances plug in with extension cords, and 240V appliances such as the well pump, water heater, range, electric dryer and central A/C can\'t run.'
+    : `Connects to your home through its ${a}A ${g.bestOutlet} outlet, a generator cord and a power inlet box, then an interlock kit or transfer switch at your panel (up to ${fmt(g.outletCapW)} W).`;
   const n = $('neutralNote');
-  if (state.conn === 'cords') { n.className = 'note'; n.textContent = g.bestOutlet ? 'Use heavy-duty outdoor cords, and plug each high-draw appliance into its own outlet or cord.' : 'This model has no 240V outlet, so it can\'t connect to a home panel. Use extension cords.'; }
+  if (state.conn === 'cords') { n.className = 'note'; n.textContent = 'Use heavy-duty outdoor cords, and plug each high-draw appliance into its own outlet or cord.'; }
   else if (g.neutral === 'Floating') { n.className = 'note ok'; n.textContent = 'Floating neutral: connects to a standard 2-pole transfer switch or interlock kit as-is.'; }
   else if (g.neutral === 'Bonded') {
     n.className = 'note warn';
     n.innerHTML = 'Bonded neutral: a qualified electrician removes the bond before this model is used with a standard 2-pole transfer switch or interlock kit' +
       (g.unbondDoc ? ` (<a href="${g.unbondDoc}" target="_blank" rel="noopener">DuroMax unbond instructions</a>)` : ' (contact DuroMax for this model)') + '. Never run it unbonded unless it is grounded through the home.';
   } else { n.className = 'note'; n.textContent = ''; }
-  $('distField').classList.toggle('hidden', state.conn === 'cords');
-  $('distSelect').value = String(state.dist);
   $('equipList').innerHTML = equipmentFor(g).map(e => `<div class="equip-item"><div><span class="role">${e.role}</span>${e.url ? `<a href="${e.url}" target="_blank" rel="noopener">${e.sku ? e.sku + ' · ' : ''}${short(e.title)}</a>` : `<span class="text">${e.title}</span>`}</div><span class="price">${e.price ? '$' + e.price.toFixed(2) : ''}${e.available === false ? ' · out of stock' : ''}</span></div>`).join('');
 }
 function short(t) { return t.replace(/^(DuroMax|Reliance|GenInterlock|AIRGO|AirGo)\s*/i, '').slice(0, 96); }
 function equipmentFor(g) {
   const items = [], a = ampsFor(g);
   if (state.conn !== 'cords' && a) {
-    if (state.conn === 'transfer' && tsObj()) { const t = tsObj(); items.push({ role: 'Transfer switch', sku: t.sku, title: t.title, url: t.url, price: t.price_usd, available: t.available }); }
-    if (state.conn === 'interlock') {
-      items.push({ role: 'Interlock kit for your panel brand', title: 'GenInterlock kits for Square D, Eaton / Cutler-Hammer, GE, Siemens / Murray / ITE and Bryant panels', url: 'https://www.duromaxpower.com/pages/geninterlock' });
-      items.push({ role: 'Backfeed breaker (not included with kit)', title: `${a}A 2-pole breaker that matches your panel brand` });
-    }
+    items.push({ role: 'Interlock kit for your panel brand', title: 'GenInterlock kits for Square D, Eaton / Cutler-Hammer, GE, Siemens / Murray / ITE and Bryant panels', url: 'https://www.duromaxpower.com/pages/geninterlock' });
+    items.push({ role: 'Backfeed breaker (not included with kit)', title: `${a}A 2-pole breaker that matches your panel brand` });
+    const sw = compatibleSwitches(g).filter(t => t.available !== false && (t.max_watts || 1e9) >= Math.min(g.fuels[state.fuel].running, g.outletCapW)).sort((x, y) => y.circuits - x.circuits)[0];
+    if (sw) items.push({ role: 'Or, instead of the interlock kit: transfer switch', sku: sw.sku, title: `${sw.title} (${sw.circuits} circuits)`, url: sw.url, price: sw.price_usd, available: sw.available });
     const inlet = EQ.inletBoxes.find(b => b.amps === a && (b.inlet_type === (a === 50 ? 'CS6375' : 'L14-30')) && b.available !== false) || EQ.inletBoxes.find(b => b.amps === a);
     if (inlet) items.push({ role: `Power inlet box (${a}A)`, sku: inlet.sku, title: inlet.title, url: inlet.url, price: inlet.price_usd, available: inlet.available });
-    if (state.dist > 50) items.push({ role: 'Generator cord', title: 'More than 50 ft: have an electrician size the cord or conductors for voltage drop. Use the shortest practical cord.' });
-    else {
-      const len = state.dist <= 25 ? 25 : 50;
+    {
+      const len = 25;
       const plugs = a === 50 ? ['14-50P', 'L14-50P'] : ['L14-30P'];
       const c = EQ.cords.find(c => plugs.includes(c.plug_end) && c.length_ft === len && c.available !== false) || EQ.cords.find(c => plugs.includes(c.plug_end) && c.length_ft >= len);
-      if (c) items.push({ role: `Generator cord · ${len} ft${len === 50 ? ' (check voltage drop)' : ''}`, sku: c.sku, title: c.title, url: c.url, price: c.price_usd, available: c.available });
+      if (c) items.push({ role: `Generator cord · ${len} ft (longer cords available)`, sku: c.sku, title: c.title, url: c.url, price: c.price_usd, available: c.available });
     }
   }
   if (state.softStart && state.on.has('centralac')) {
@@ -326,16 +250,15 @@ function renderMeter() {
   const s = $('statusLine');
   if (state.tripped) { s.className = 'status bad'; s.textContent = 'Overloaded. The generator breaker tripped and the house is dark.'; }
   else if (!t.running) { s.className = 'status'; s.textContent = 'Switch on appliances to see how much power they use.'; }
-  else if (pctRun > reserveAt) { s.className = 'status warn'; s.textContent = `It runs, but it's using more than 83% of the generator's running watts. We recommend keeping a 20% reserve. See "Generators that fit this plan" on the right.`; }
+  else if (!E.qualify(gen(), state.fuel, state.conn, E.targets(APPS, live, opts(), HEADROOM)).meetsPeak) { s.className = 'status warn'; s.textContent = `It runs for now, but a motor start could trip the ${gen().model}. See "Generators that fit this plan" in step 4.`; }
+  else if (pctRun > reserveAt) { s.className = 'status warn'; s.textContent = `It runs, but it's using more than 83% of the generator's running watts. We recommend keeping a 20% reserve. See "Generators that fit this plan" in step 4.`; }
   else { s.className = 'status ok'; s.textContent = `Good fit. The ${gen().model} runs this load with room to spare.`; }
 }
 
 function renderPanel() {
   const rooms = {};
   for (const a of APPS) (rooms[a.room] ||= []).push(a);
-  const ts = state.conn === 'transfer';
-  $('panelHelp').textContent = ts ? `Switch appliances on to connect them to the transfer switch. ${usedSlots()} of ${slotLimit()} circuits in use.` :
-    state.conn === 'cords' ? 'Flip a switch to plug that appliance into the generator.' : 'Flip breakers on and off, or click appliances in the house.';
+  $('panelHelp').textContent = state.conn === 'cords' ? 'Flip a switch to plug that appliance into the generator.' : 'Start with a preset, then flip breakers on and off or click appliances in the house.';
   $('acBox').classList.toggle('hidden', state.conn === 'cords');
   $('panel').innerHTML = Object.entries(rooms).map(([room, list]) => {
     const roomW = list.filter(a => isPowered(a.id)).reduce((s, a) => s + a.running, 0);
@@ -345,35 +268,34 @@ function renderPanel() {
         const st = E.effectiveStarting(a, state.softStart, RED);
         return `<div class="circuit ${on && !b ? (state.tripped ? 'dead' : 'on') : ''} ${b ? 'blocked' : ''}" id="row-${a.id}" title="${b || ''}">
           <button class="breaker ${on ? 'on' : ''}" data-id="${a.id}" aria-label="${a.name}" aria-pressed="${on}"></button>
-          <div class="c-name">${a.name}${a.volts === 240 ? '<span class="tag v240">240V</span>' : ''}${a.tag ? `<span class="tag ${a.tag}">${a.tag}</span>` : ''}${a.softStart && state.softStart ? '<span class="tag AirGo">AirGo</span>' : ''}
-            ${ts && a.volts === 240 ? '<span class="tag v240" title="Uses two transfer-switch circuits">2 circuits</span>' : ''}</div>
+          <div class="c-name">${a.name}${a.volts === 240 ? '<span class="tag v240">240V</span>' : ''}${a.tag ? `<span class="tag ${a.tag}">${a.tag}</span>` : ''}${a.softStart && state.softStart ? '<span class="tag AirGo">AirGo</span>' : ''}</div>
           <div class="c-watts">${fmt(a.running)} W${st > a.running ? `<br><span>${fmt(st)} W start</span>` : ''}</div></div>`;
       }).join('') + '</div>';
   }).join('');
 }
 
 function renderMatches() {
-  const conn = state.conn === 'transfer' ? 'interlock' : state.conn;
-  const tg = E.targets(APPS, liveSet(), opts(), HEADROOM);
+  const tg = E.targets(APPS, state.on, opts(), HEADROOM);
   if (!tg.running) { $('targetText').textContent = 'Switch on the appliances you need and we\'ll list the generators that can run them.'; $('matchList').innerHTML = ''; return; }
   $('targetText').innerHTML = `For this plan on <b>${state.fuel}</b> you need at least <b>${fmt(tg.runTarget)} running W</b> (your load + 20% reserve) and <b>${fmt(tg.peakTarget)} peak W</b> (for the biggest start-up).`;
-  const m = E.matchGenerators(GENS, state.fuel, conn, tg);
-  if (!m.length) { $('matchList').innerHTML = `<p class="note warn">No single generator covers this plan on ${state.fuel}${state.conn !== 'cords' ? ' through a 50A connection' : ''}. Try turning off a large load, adding the AirGo soft starter, or starting big motors one at a time.</p>`; return; }
+  const m = E.matchGenerators(GENS, state.fuel, 'auto', tg, has240());
+  if (!m.length) { $('matchList').innerHTML = `<p class="note warn">No single generator covers this plan on ${state.fuel} through a 50A connection. Try turning off a large load, adding the AirGo soft starter to the central A/C, or ${state.fuel === 'Gasoline' ? 'starting big motors one at a time' : 'choosing gasoline, which gives more power'}.</p>`; return; }
   const cur = m.find(x => x.gen.model === state.model);
-  const top = m.slice(0, 4); if (cur && !top.includes(cur)) top.push(cur);
+  const top = state.showAll ? m.slice() : m.slice(0, 4); if (cur && !top.includes(cur)) top.push(cur);
   $('matchList').innerHTML = top.map((x, i) => {
     const f = x.gen.fuels[state.fuel];
+    const connTxt = x.conn === 'cords' ? 'extension cords' : `${ampsFor(x.gen)}A outlet`;
     return `<div class="match ${x.gen.model === state.model ? 'current' : ''}">
       <img src="${imgUrl(x.gen.image, 160)}" alt="" loading="lazy">
       <div><div class="m-name">${x.gen.brand} ${x.gen.model}${i === 0 ? '<span class="m-badge">Best fit</span>' : ''}</div>
-        <div class="m-sub">${fmt(f.running)} running / ${fmt(f.starting)} peak W · ${x.gen.fuelConfig}${x.gen.price ? ' · $' + fmt(x.gen.price) : ''}${x.q.status === 'CAPACITY OK - VERIFY CONNECTION' ? ' · 30A connection' : ''}</div></div>
-      ${x.gen.model === state.model ? '<span class="muted small">Selected</span>' : `<button class="btn btn-small" data-pick="${x.gen.model}">Try it</button>`}</div>`;
-  }).join('') + (m.length > top.length ? `<p class="muted small" style="margin-top:8px">${m.length - top.length} more models also fit.</p>` : '');
+        <div class="m-sub">${fmt(f.running)} running / ${fmt(f.starting)} peak W · ${x.gen.fuelConfig} · ${connTxt}${x.gen.price ? ' · $' + fmt(x.gen.price) : ''}</div></div>
+      ${x.gen.model === state.model ? '<span class="m-now">In simulator</span>' : `<button class="btn btn-small btn-try" data-pick="${x.gen.model}">Try it</button>`}</div>`;
+  }).join('') + (m.length > 4 ? `<button class="btn btn-link" id="showAllBtn">${state.showAll ? 'Show fewer' : `Show all ${m.length} models that fit`}</button>` : '');
 }
 
 function renderBanner() {
   const b = $('banner');
-  if (state.tripped) { b.classList.remove('hidden'); $('bannerTitle').textContent = 'Overload: generator breaker tripped'; $('bannerMsg').textContent = state.tripped.message + ' Resetting switches every breaker off.'; }
+  if (state.tripped) { b.classList.remove('hidden'); $('bannerTitle').textContent = 'Overload: generator breaker tripped'; $('bannerMsg').textContent = state.tripped.message + ' Press Try it on a generator in step 4, or reset to switch every breaker off.'; }
   else b.classList.add('hidden');
 }
 
@@ -404,7 +326,7 @@ function showTooltip(id, ev) {
   tip.classList.remove('hidden');
 }
 function shareLink() {
-  const p = new URLSearchParams({ model: state.model, fuel: state.fuel, conn: state.conn, ...(state.conn === 'transfer' && state.ts ? { ts: state.ts } : {}), ton: state.ton, soft: state.softStart ? 1 : 0, on: [...state.on].join(',') });
+  const p = new URLSearchParams({ model: state.model, fuel: state.fuel, sqft: state.sqft, bed: state.bedrooms, bath: state.bathrooms, ton: state.ton, soft: state.softStart ? 1 : 0, on: [...state.on].join(',') });
   const url = location.origin + location.pathname + '?' + p.toString();
   const done = () => toast('Link copied. Anyone who opens it will see this exact setup.');
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt('Copy this link:', url)); else prompt('Copy this link:', url);
@@ -417,23 +339,36 @@ function readNameplate() {
 }
 
 // ---------------- events ----------------
-$('brandSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.brand = b.dataset.brand; renderGenSelect(); selectGenerator($('genSelect').value); });
-$('genSelect').addEventListener('change', e => selectGenerator(e.target.value));
-$('fuelSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; state.fuel = b.dataset.fuel; revalidate(); });
-$('connSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; state.conn = b.dataset.conn; reportDropped(fitToSwitch()); revalidate(); });
-$('tsSelect').addEventListener('change', e => { state.ts = e.target.value; reportDropped(fitToSwitch()); revalidate(); });
-$('cmList').addEventListener('click', e => { const b = e.target.closest('[data-free]'); if (b) freeCircuit(b.dataset.free); });
-$('cmUpgrade').addEventListener('click', upgradeSwitch);
-$('cmCancel').addEventListener('click', closeCircuitDialog);
-$('circuitModal').addEventListener('click', e => { if (e.target.id === 'circuitModal') closeCircuitDialog(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && pending) closeCircuitDialog(); });
-$('distSelect').addEventListener('change', e => { state.dist = +e.target.value; render(); });
+$('sqftSelect').addEventListener('change', e => {
+  state.sqft = e.target.value;
+  state.ton = HOME.sqft.find(o => o.id === state.sqft).ton;   // suggest the matching A/C size
+  revalidate();
+  if (!state.nameplate) toast(`Central A/C set to ${state.ton} tons for this size home. You can change it in step 3.`);
+});
+$('bedSelect').addEventListener('change', e => { state.bedrooms = +e.target.value; revalidate(); });
+$('bathSelect').addEventListener('change', e => { state.bathrooms = +e.target.value; revalidate(); });
+$('fuelSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  state.fuel = b.dataset.fuel;
+  if (!gen().fuels[state.fuel]) {
+    // e.g. natural gas on a dual fuel model: move to the best-fitting generator that runs on this fuel
+    const g = bestFit(); state.tripped = null; selectGenerator(g.model);
+    toast(`The previous model doesn't run on ${state.fuel.toLowerCase()}, so the ${g.brand} ${g.model} is in the simulator now.`);
+    return;
+  }
+  revalidate();
+});
 $('softStart').addEventListener('change', e => { state.softStart = e.target.checked; revalidate(); });
 $('tonSelect').addEventListener('change', e => { state.ton = +e.target.value; revalidate(); });
 ['npV', 'npRla', 'npFla', 'npLra'].forEach(id => $(id).addEventListener('change', readNameplate));
 $('npClear').addEventListener('click', () => { ['npRla', 'npFla', 'npLra'].forEach(id => { $(id).value = ''; }); state.nameplate = null; revalidate(); });
 $('panel').addEventListener('click', e => { const b = e.target.closest('.breaker'); if (b) toggle(b.dataset.id); });
-$('matchList').addEventListener('click', e => { const b = e.target.closest('[data-pick]'); if (!b) return; const g = GENS.find(x => x.model === b.dataset.pick); if (state.brand !== 'All' && g.brand !== state.brand) state.brand = 'All'; state.tripped = null; selectGenerator(g.model); toast(`Switched to the ${g.brand} ${g.model}.`); });
+$('matchList').addEventListener('click', e => {
+  if (e.target.closest('#showAllBtn')) { state.showAll = !state.showAll; renderMatches(); return; }
+  const b = e.target.closest('[data-pick]'); if (!b) return;
+  const g = GENS.find(x => x.model === b.dataset.pick); state.tripped = null; selectGenerator(g.model);
+  toast(`The ${g.brand} ${g.model} is now in the simulator.`);
+});
 document.querySelector('.presets').addEventListener('click', e => { const b = e.target.closest('[data-preset]'); if (b) applyPreset(b.dataset.preset); });
 $('resetBtn').addEventListener('click', resetBreaker);
 $('viewHome').addEventListener('click', () => house.setView('home'));
@@ -444,16 +379,18 @@ $('shareBtn').addEventListener('click', shareLink);
 $('howBtn').addEventListener('click', () => $('intro').classList.remove('hidden'));
 $('introGo').addEventListener('click', () => { $('intro').classList.add('hidden'); try { localStorage.setItem('dm-sim-intro', '1'); } catch (e) { /* storage unavailable */ } });
 
-// deep link: ?model=XP13000HX&fuel=Propane&conn=transfer&ton=3.5&soft=1&on=fridge,lights
+// deep link: ?model=XP13000HX&fuel=Propane&sqft=1900&bed=4&bath=2.5&ton=3.5&soft=1&on=fridge,lights
 const q = new URLSearchParams(location.search);
-if (q.get('model') && GENS.find(g => g.model === q.get('model'))) state.model = q.get('model');
-if (q.get('fuel')) state.fuel = q.get('fuel');
-if (['interlock', 'transfer', 'cords'].includes(q.get('conn'))) state.conn = q.get('conn');
+if (['Gasoline', 'Propane', 'Natural Gas'].includes(q.get('fuel'))) state.fuel = q.get('fuel');
+if (HOME.sqft.find(o => o.id === q.get('sqft'))) { state.sqft = q.get('sqft'); state.ton = HOME.sqft.find(o => o.id === state.sqft).ton; }
+if (HOME.bedrooms.includes(+q.get('bed'))) state.bedrooms = +q.get('bed');
+if (HOME.bathrooms.includes(+q.get('bath'))) state.bathrooms = +q.get('bath');
 if (q.get('ton') && AC.tons[q.get('ton')]) state.ton = +q.get('ton');
 if (q.get('soft') === '1') state.softStart = true;
 if (q.get('on') !== null) state.on = new Set(q.get('on').split(',').filter(id => APP[id]));
-if (q.get('ts')) state.ts = q.get('ts');
 let seen = false; try { seen = localStorage.getItem('dm-sim-intro') === '1'; } catch (e) { /* ignore */ }
 if (!seen && !q.get('model')) $('intro').classList.remove('hidden');
-selectGenerator(state.model);
+applyAc(); applyHome();
+const linked = GENS.find(g => g.model === q.get('model') && g.fuels[state.fuel]);
+selectGenerator(linked ? linked.model : bestFit().model);   // start with the best fit for the starting plan
 window.__sim = { state, render, toggle, applyPreset, resetBreaker, selectGenerator, house };   // for testing

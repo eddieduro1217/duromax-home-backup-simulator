@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=2.3">
+<link rel="stylesheet" href="css/app.css?v=2.4">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -57,7 +57,6 @@
     </div>
     <div class="subbar">
       <div class="status" id="statusLine"></div>
-      <div id="tsSlots" class="slots hidden"></div>
     </div>
     <div id="stage">
     <div id="scene"></div>
@@ -81,35 +80,23 @@
 
   <aside id="sidebar">
     <section class="card">
-      <h2><span class="step">1</span>Choose a generator</h2>
-      <div class="seg" id="brandSeg">
-        <button data-brand="All" class="on">All</button>
-        <button data-brand="DuroMax">DuroMax</button>
-        <button data-brand="DuroStar">DuroStar</button>
+      <h2><span class="step">1</span>Home details</h2>
+      <div class="home-grid">
+        <label class="field"><span>Square feet</span><select id="sqftSelect"></select></label>
+        <label class="field"><span>Bedrooms</span><select id="bedSelect"></select></label>
+        <label class="field"><span>Bathrooms</span><select id="bathSelect"></select></label>
       </div>
-      <label class="field"><span>Model</span><select id="genSelect"></select></label>
-      <div class="product" id="product"></div>
-      <div class="field"><span>Fuel</span><div class="seg" id="fuelSeg"></div></div>
-      <div class="specs" id="genSpecs"></div>
+      <p class="muted small" id="homeHint"></p>
     </section>
 
     <section class="card">
-      <h2><span class="step">2</span>Connect it to the home</h2>
-      <div class="seg seg-3" id="connSeg">
-        <button data-conn="interlock">Interlock kit</button>
-        <button data-conn="transfer">Transfer switch</button>
-        <button data-conn="cords">Extension cords</button>
+      <h2><span class="step">2</span>Preferred fuel source</h2>
+      <div class="seg seg-3" id="fuelSeg">
+        <button data-fuel="Gasoline">Gasoline</button>
+        <button data-fuel="Propane">Propane</button>
+        <button data-fuel="Natural Gas">Natural Gas</button>
       </div>
-      <p class="muted" id="connDesc"></p>
-      <label class="field" id="tsField"><span>Transfer switch</span><select id="tsSelect"></select></label>
-      <div id="neutralNote" class="note"></div>
-      <label class="field" id="distField"><span>Generator distance from the house inlet</span>
-        <select id="distSelect"><option value="25">Up to 25 ft</option><option value="50">26 – 50 ft</option><option value="99">More than 50 ft</option></select>
-      </label>
-      <details class="equip" id="equipBox" open>
-        <summary>What you'll need for this setup</summary>
-        <div id="equipList"></div>
-      </details>
+      <p class="muted small" id="fuelHint"></p>
     </section>
 
     <section class="card">
@@ -148,6 +135,17 @@
       <h2><span class="step">4</span>Generators that fit this plan</h2>
       <p class="muted" id="targetText"></p>
       <div id="matchList"></div>
+      <div class="onscreen" id="onscreen">
+        <div class="onscreen-label">Generator in the simulator</div>
+        <div class="product" id="product"></div>
+        <div class="specs" id="genSpecs"></div>
+        <p class="muted small" id="connDesc"></p>
+        <div id="neutralNote" class="note"></div>
+        <details class="equip" id="equipBox">
+          <summary>What you'll need for this setup</summary>
+          <div id="equipList"></div>
+        </details>
+      </div>
     </section>
 
     <section class="card">
@@ -160,8 +158,8 @@
           <p>We recommend a generator whose running watts cover your running load plus a 20% reserve, and whose peak watts cover your running load plus the largest single start-up. Always use the ratings for the fuel you'll actually use: propane and natural gas produce less power than gasoline.</p>
           <h3>Central A/C</h3>
           <p>Central A/C is usually the biggest start-up load. Sizes are based on typical single-stage units. For an accurate result, enter the RLA and LRA from your outdoor unit's nameplate. The indoor blower runs with the A/C and is counted separately. A soft starter, like the AirGo, reduces the start-up surge. Your HVAC professional should confirm it's compatible with your unit.</p>
-          <h3>Interlock kit vs. transfer switch</h3>
-          <p><b>Interlock kit:</b> a slide plate on your breaker panel that holds the main breaker off while the generator breaker is on, so power can never flow back onto the utility lines. Every circuit is available, and you choose what to run. <b>Transfer switch:</b> a small subpanel wired to pre-selected circuits. Up to 7,200 W, use a 6-circuit switch with a 30A inlet. Above 7,200 W, use a 10-circuit switch with a 50A inlet.</p>
+          <h3>How the generator connects</h3>
+          <p>The simulator connects each generator the way we recommend for home backup: through its 50A outlet (14-50R, up to 12,000 W) or 30A outlet (L14-30R, up to 7,200 W), a generator cord and a power inlet box on the outside of the house. Models without either outlet use extension cords, which can only run 120V appliances. <b>Interlock kit:</b> a slide plate on your breaker panel that holds the main breaker off while the generator breaker is on, so power can never flow back onto the utility lines. Every circuit is available, and you choose what to run. <b>Transfer switch:</b> a small subpanel wired to pre-selected circuits. Up to 7,200 W, use a 6-circuit switch with a 30A inlet. Above 7,200 W, use a 10-circuit switch with a 50A inlet.</p>
           <h3>Bonded vs. floating neutral</h3>
           <p>Floating-neutral generators connect to a standard 2-pole transfer switch or interlock as-is. Bonded-neutral generators need the bond removed by a qualified electrician (DuroMax publishes instructions) or a neutral-switching transfer switch.</p>
           <h3>Safety</h3>
@@ -176,35 +174,24 @@
   </aside>
 </div>
 
-<div id="circuitModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
-  <div class="modal-card">
-    <h2 id="cmTitle">All circuits are in use</h2>
-    <p id="cmText"></p>
-    <div id="cmList" class="cm-list"></div>
-    <div class="cm-actions">
-      <button class="btn btn-primary" id="cmUpgrade">Use a bigger transfer switch</button>
-      <button class="btn btn-small" id="cmCancel">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <div id="intro" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="introTitle">
   <div class="modal-card">
     <h2 id="introTitle">Will your generator power your home?</h2>
     <ol class="intro-steps">
-      <li><b>Pick a generator and fuel.</b> Choose any DuroMax or DuroStar model.</li>
-      <li><b>Choose how it connects.</b> Interlock kit, transfer switch or extension cords.</li>
-      <li><b>Switch on what you need.</b> Click appliances in the house or use the breaker list. Too much load and the generator breaker trips, just like the real thing.</li>
+      <li><b>Tell us about your home.</b> Square footage, bedrooms and bathrooms.</li>
+      <li><b>Pick your fuel.</b> Gasoline, propane or natural gas.</li>
+      <li><b>Switch on what you need.</b> Start with Essentials, Comfort or Whole home + A/C, then fine-tune. Click appliances in the house or use the breaker list.</li>
+      <li><b>See the generators that fit.</b> Press <b>Try it</b> to put one in the simulator. Too much load and its breaker trips, just like the real thing.</li>
     </ol>
-    <p class="muted">We'll show which generators fit your plan with a safe 20% reserve.</p>
+    <p class="muted">Every recommendation keeps a safe 20% reserve.</p>
     <button class="btn btn-cta" id="introGo">Start the simulator</button>
   </div>
 </div>
 
-<script src="data/generators.js?v=2.3"></script>
-<script src="data/equipment.js?v=2.3"></script>
-<script src="data/appliances.js?v=2.3"></script>
-<script src="js/engine.js?v=2.3"></script>
-<script type="module" src="js/app.js?v=2.3"></script>
+<script src="data/generators.js?v=2.4"></script>
+<script src="data/equipment.js?v=2.4"></script>
+<script src="data/appliances.js?v=2.4"></script>
+<script src="js/engine.js?v=2.4"></script>
+<script type="module" src="js/app.js?v=2.4"></script>
 </body>
 </html>
