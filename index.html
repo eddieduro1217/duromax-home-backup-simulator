@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Backup Power Simulator | DuroMax &amp; DuroStar</title>
+<meta name="description" content="See which home appliances a DuroMax or DuroStar portable generator can power through a transfer switch or interlock kit.">
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app">
+  <main id="viewport">
+    <div id="scene"></div>
+    <div id="banner" class="banner hidden" role="alert">
+      <div class="banner-text"><strong id="bannerTitle"></strong><span id="bannerMsg"></span></div>
+      <button id="resetBtn" class="btn btn-accent">Reset generator breaker</button>
+    </div>
+    <div class="hud-top">
+      <div class="hud-chip" id="hudGen">—</div>
+      <div class="hud-chip" id="hudLoad">0 W</div>
+    </div>
+    <div class="hud-bottom">
+      <button class="btn btn-ghost" id="viewHome" title="Overview">Overview</button>
+      <button class="btn btn-ghost" id="viewPanel" title="Look at the panel and generator">Panel &amp; generator</button>
+      <button class="btn btn-ghost" id="dayNight" title="Toggle day / night">Switch to day</button>
+    </div>
+    <div id="tooltip" class="tooltip hidden"></div>
+    <div class="hint">Click an appliance to switch its breaker. Drag to rotate, scroll to zoom.</div>
+  </main>
+
+  <aside id="sidebar">
+    <header class="brand">
+      <div class="brand-mark">⚡</div>
+      <div>
+        <h1>Home Backup Power Simulator</h1>
+        <p>DuroMax &amp; DuroStar portable generators</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>1. Generator</h2>
+      <div class="seg" id="brandSeg">
+        <button data-brand="All" class="on">All</button>
+        <button data-brand="DuroMax">DuroMax</button>
+        <button data-brand="DuroStar">DuroStar</button>
+      </div>
+      <label class="field"><span>Model</span><select id="genSelect"></select></label>
+      <div class="field"><span>Fuel</span><div class="seg" id="fuelSeg"></div></div>
+      <div class="specs" id="genSpecs"></div>
+    </section>
+
+    <section class="card">
+      <h2>2. Home connection</h2>
+      <div class="seg" id="connSeg">
+        <button data-conn="interlock">Interlock kit</button>
+        <button data-conn="transfer">Transfer switch</button>
+        <button data-conn="cords">Extension cords</button>
+      </div>
+      <p class="muted small" id="connDesc"></p>
+      <label class="field" id="tsField"><span>Transfer switch</span><select id="tsSelect"></select></label>
+      <div id="tsSlots" class="slots"></div>
+      <div id="neutralNote" class="note"></div>
+      <details class="equip" id="equipBox">
+        <summary>What you need for this setup</summary>
+        <div id="equipList"></div>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>3. Load</h2>
+      <div class="meter">
+        <div class="meter-head"><span>Running load</span><span id="runText">0 / 0 W</span></div>
+        <div class="bar"><div class="fill" id="runFill"></div></div>
+        <div class="meter-head"><span>Peak starting load</span><span id="surgeText">0 / 0 W</span></div>
+        <div class="bar thin"><div class="fill" id="surgeFill"></div></div>
+      </div>
+      <div class="stats">
+        <div><span class="stat-label">Load</span><span class="stat" id="pctText">0%</span></div>
+        <div><span class="stat-label">Est. runtime</span><span class="stat" id="runtimeText">—</span></div>
+        <div><span class="stat-label">Limited by</span><span class="stat small" id="limitText">—</span></div>
+      </div>
+      <label class="toggle-row">
+        <input type="checkbox" id="softStart">
+        <span class="switch"></span>
+        <span><strong>AirGo soft starter</strong> on the central AC<br><span class="muted small">Cuts the start-up surge so the AC can start on a portable generator.</span></span>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>4. Breaker panel</h2>
+      <div class="presets">
+        <button class="btn btn-small" data-preset="essentials">Essentials</button>
+        <button class="btn btn-small" data-preset="comfort">Comfort</button>
+        <button class="btn btn-small" data-preset="off">All off</button>
+      </div>
+      <p class="muted small" id="panelHelp"></p>
+      <div id="panel"></div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary><h2 class="inline">How it works</h2></summary>
+        <div class="guide">
+          <h3>Interlock kit</h3>
+          <p>A slide plate on your breaker panel cover. With it slid up, the generator (backfeed) breaker can be switched on while the main breaker is held off, so generator power can never flow back onto the utility lines. You pick which breakers to run, and can change them anytime.</p>
+          <h3>Transfer switch</h3>
+          <p>A small subpanel an electrician wires to a set of pre-selected circuits. Up to 7,200 W: 6-circuit switch with a 30A inlet. Above 7,200 W: 10-circuit switch with a 50A inlet. A 240V load uses two circuits.</p>
+          <h3>Extension cords</h3>
+          <p>No installation - plug appliances straight into the generator. 240V appliances (well pump, water heater, range, electric dryer, central AC) can't run this way. Put each high-draw appliance on its own cord.</p>
+          <h3>Bonded vs floating neutral</h3>
+          <p>Floating-neutral generators connect to a standard 2-pole transfer switch or interlock as-is. Bonded-neutral generators need the bond removed by a qualified electrician (DuroMax publishes instructions) or a neutral-switching switch. Never run a generator with the bond removed unless it is grounded through the home. On several models, removing the bond disables the GFCI outlets.</p>
+          <h3>Running vs starting watts</h3>
+          <p>Motors (fridge, pumps, AC, furnace blower) need extra power for a second or two when they start. The simulator checks the running total against the generator's running watts (limited by the cord/inlet: 30A = 7,200 W, 50A = 12,000 W), and each start-up against its starting (peak) watts.</p>
+        </div>
+      </details>
+    </section>
+
+    <footer class="disclaimer">
+      Wattages are typical estimates - check each appliance's nameplate. Connecting a generator to home wiring requires an approved transfer switch or interlock kit installed by a licensed electrician per local code. Generator specs from duromaxpower.com, Sept 2026.
+    </footer>
+  </aside>
+</div>
+
+<script src="data/generators.js"></script>
+<script src="data/equipment.js"></script>
+<script src="data/appliances.js"></script>
+<script src="js/engine.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
