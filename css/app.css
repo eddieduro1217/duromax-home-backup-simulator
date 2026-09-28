@@ -292,3 +292,10 @@ details > summary::-webkit-details-marker { display: none; }
 .onscreen { margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--dm-blue); }
 .onscreen-label { font-family: var(--font-head); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--dm-blue); margin-bottom: 6px; }
 @media (max-width: 420px) { .home-grid { grid-template-columns: 1fr 1fr; } .home-grid .field:first-child { grid-column: 1 / -1; } }
+
+/* v2.5: reset button, planning state */
+.btn-reset { display: inline-flex; align-items: center; gap: 6px; background: var(--accent, #ffcc33); border-color: var(--accent, #ffcc33); color: #1c1d1d; font-weight: 700; }
+.btn-reset:hover { background: #ffd95c; border-color: #ffd95c; }
+.status.info { border-color: var(--dm-blue); background: var(--dm-blue-soft); }
+.reserve.hidden { display: none; }
+@media (max-width: 600px) { .topbar-actions { gap: 6px; } .topbar-actions .btn { padding: 7px 9px; font-size: 12.5px; } }

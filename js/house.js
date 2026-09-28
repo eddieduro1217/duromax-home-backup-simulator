@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { tex, roundRect } from './textures.js?v=2.4';
-import { buildGenerator } from './models/generator.js?v=2.4';
-import { buildEV } from './models/ev.js?v=2.4';
+import { tex, roundRect } from './textures.js?v=2.5';
+import { buildGenerator } from './models/generator.js?v=2.5';
+import { buildEV } from './models/ev.js?v=2.5';
 
 const GEN_POS = new THREE.Vector3(14.2, 0.02, -3.2);
 const INLET_POS = new THREE.Vector3(8.1, 0.62, -3.5);
@@ -428,17 +428,23 @@ export function createHouse(container, { onClick, onHover } = {}) {
     reg('lights', g, [bulbMat]); }
 
   // ---------- generator, cord, inlet, panel, transfer switch ----------
-  let gen = null, genBase = GEN_POS.clone(), genBody = null, genLed = null;
+  let gen = null, genSet = false, genBase = GEN_POS.clone(), genBody = null, genLed = null;
   const genGroup = new THREE.Group(); scene.add(genGroup);
   const genLabel = sprite('Generator'); scene.add(genLabel);
   const cordM = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, emissive: 0xffcc33, emissiveIntensity: 0 });
   let cordMesh = null;
   function setGeneratorModel(g) {
-    if (gen && gen.model === g.model) return;
-    gen = g;
+    if (genSet && (gen === g || (gen && g && gen.model === g.model))) return;
+    gen = g; genSet = true;
     // free the previous model's GPU memory (shared canvas textures are cached and kept)
     genGroup.traverse(o => { if (o.isMesh) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } });
     genGroup.clear();
+    if (!g) {   // no generator yet: empty pad, no cord
+      genBody = null; genLed = null;
+      if (cordMesh) { scene.remove(cordMesh); cordMesh.geometry.dispose(); cordMesh = null; }
+      genLabel.position.set(genBase.x, 1.2, genBase.z); genLabel.userData.set('Generator goes here');
+      return;
+    }
     const built = buildGenerator(g);
     genBody = built.group; genLed = built.led;
     genGroup.add(genBody);

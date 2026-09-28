@@ -4,12 +4,17 @@ An interactive 3D home that shows which appliances a DuroMax or DuroStar portabl
 
 Enter your home details and preferred fuel, switch on what you need (presets, the breaker list, or by clicking appliances in the house), then pick from the generators that fit the plan with **Try it** to see what runs, what trips the generator breaker, and roughly how long the fuel lasts.
 
+## What's new in v2.5
+
+- The simulator opens with **no generator** and nothing switched on. A generator appears only when the customer presses **Try it** in step 4. Until then the power bar shows what the plan needs.
+- **Reset** button (top right) clears everything back to the very beginning.
+
 ## What's new in v2.4
 
 - **New step order:** 1 Home details (square feet, bedrooms, bathrooms) · 2 Preferred fuel source · 3 Switch on appliances · 4 Generators that fit this plan (with Try it).
 - Square feet suggests the central A/C size; bedrooms and bathrooms set the LED bulb and ceiling fan counts (`window.HOME` in `data/appliances.js`).
-- No generator or connection picker. Each generator connects automatically through its 50A (14-50R) or 30A (L14-30R) outlet and a power inlet, or with extension cords (120V only) if it has neither. The simulator starts with the best fit for the Essentials plan.
-- Choosing natural gas while a dual fuel model is in the simulator switches to the best-fitting tri fuel model.
+- No generator or connection picker. Each generator connects automatically through its 50A (14-50R) or 30A (L14-30R) outlet and a power inlet, or with extension cords (120V only) if it has neither.
+- Choosing natural gas while a dual fuel model is in the simulator takes that model out so the customer can pick a tri fuel model.
 - Removed models: XP4850EH, XP10000X, DS10000EH, XP11500EH, XP15000HX, XP15000HXT (`EXCLUDE` in `tools/build_data.py`).
 
 ## What's new in v2

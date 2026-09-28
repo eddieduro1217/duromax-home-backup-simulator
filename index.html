@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=2.4">
+<link rel="stylesheet" href="css/app.css?v=2.5">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -30,6 +30,8 @@
   <div class="topbar-actions">
     <button class="btn btn-outline-light" id="howBtn">How it works</button>
     <button class="btn btn-outline-light" id="shareBtn" title="Copy a link to this setup">Share setup</button>
+    <button class="btn btn-reset" id="startOverBtn" title="Clear everything and start from the beginning">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>Reset</button>
   </div>
 </header>
 
@@ -135,7 +137,7 @@
       <h2><span class="step">4</span>Generators that fit this plan</h2>
       <p class="muted" id="targetText"></p>
       <div id="matchList"></div>
-      <div class="onscreen" id="onscreen">
+      <div class="onscreen hidden" id="onscreen">
         <div class="onscreen-label">Generator in the simulator</div>
         <div class="product" id="product"></div>
         <div class="specs" id="genSpecs"></div>
@@ -188,10 +190,10 @@
   </div>
 </div>
 
-<script src="data/generators.js?v=2.4"></script>
-<script src="data/equipment.js?v=2.4"></script>
-<script src="data/appliances.js?v=2.4"></script>
-<script src="js/engine.js?v=2.4"></script>
-<script type="module" src="js/app.js?v=2.4"></script>
+<script src="data/generators.js?v=2.5"></script>
+<script src="data/equipment.js?v=2.5"></script>
+<script src="data/appliances.js?v=2.5"></script>
+<script src="js/engine.js?v=2.5"></script>
+<script type="module" src="js/app.js?v=2.5"></script>
 </body>
 </html>

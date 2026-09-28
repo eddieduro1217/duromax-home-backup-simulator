@@ -1,5 +1,5 @@
 // UI + state for the Home Backup Power Simulator.
-import { createHouse } from './house.js?v=2.4';
+import { createHouse } from './house.js?v=2.5';
 
 const E = window.Engine;
 const GENS = window.GENERATORS;
@@ -12,18 +12,21 @@ const fmt = E.fmt;
 const RED = window.SOFT_START_REDUCTION, HEADROOM = window.HEADROOM;
 
 const HOME = window.HOME;
-const state = {
+// Starting point: no generator in the simulator and nothing switched on. A generator is added only when
+// the customer presses "Try it" on one of the generators that fit their plan (step 4).
+const START = () => ({
   model: null, fuel: 'Gasoline', conn: 'interlock',
   sqft: HOME.defaults.sqft, bedrooms: HOME.defaults.bedrooms, bathrooms: HOME.defaults.bathrooms,
-  on: new Set(window.PRESETS.essentials), softStart: false, tripped: null, night: true,
-  ton: AC.default, nameplate: null, showAll: false,
-};
+  on: new Set(), softStart: false, tripped: null,
+  ton: HOME.sqft.find(o => o.id === HOME.defaults.sqft).ton, nameplate: null, showAll: false,
+});
+const state = { ...START(), night: true };
 
 // ---------------- helpers ----------------
-const gen = () => GENS.find(g => g.model === state.model);
+const gen = () => (state.model && GENS.find(g => g.model === state.model)) || null;
 const fuelSpec = () => gen().fuels[state.fuel];
 const opts = () => ({ softStart: state.softStart, reduction: RED });
-const cap = () => E.capacity(gen(), state.fuel, state.conn);
+const cap = () => gen() ? E.capacity(gen(), state.fuel, state.conn) : { running: 0, surge: 0, limitedBy: '—' };
 const ampsFor = g => g.bestOutlet === '14-50R' ? 50 : g.bestOutlet === 'L14-30R' ? 30 : 0;
 const imgUrl = (u, w) => u ? u + (u.includes('?') ? '&' : '?') + 'width=' + w : '';
 const blocked = id => E.blockedReason(APP[id], state.conn);
@@ -36,14 +39,7 @@ function applyHome() {
   Object.assign(APP.lights, { running: n * HOME.bulbWatts, starting: n * HOME.bulbWatts, name: `Essential LED Lights (${n} bulbs)` });
   Object.assign(APP.fans, { running: fans * HOME.fanWatts, starting: fans * HOME.fanWatts, name: `Ceiling Fans (${fans})` });
 }
-/** Smallest generator that fits the current plan on the current fuel (or the largest on that fuel if none fits). */
-function bestFit() {
-  const m = E.matchGenerators(GENS, state.fuel, 'auto', E.targets(APPS, state.on, opts(), HEADROOM), has240());
-  if (m.length) return m[0].gen;
-  const onFuel = GENS.filter(g => g.fuels[state.fuel] && g.bestOutlet);
-  return onFuel.sort((a, b) => b.fuels[state.fuel].running - a.fuels[state.fuel].running)[0] || GENS[0];
-}
-const isPowered = id => state.on.has(id) && !state.tripped && !blocked(id);
+const isPowered = id => !!gen() && state.on.has(id) && !state.tripped && !blocked(id);
 function acRla() { return state.nameplate ? state.nameplate.rla : AC.tons[state.ton].rla; }
 function applyAc() {
   const a = APP.centralac;
@@ -73,15 +69,16 @@ requestAnimationFrame(() => setTimeout(() => $('loading').classList.add('done'),
 
 // ---------------- actions ----------------
 function selectGenerator(model) {
-  state.model = model;
+  state.model = model || null;
   const g = gen();
-  if (!g.fuels[state.fuel]) state.fuel = Object.keys(g.fuels)[0];
-  state.conn = E.autoConnection(g);   // 50A or 30A outlet through a power inlet; extension cords if it has neither
+  if (g && !g.fuels[state.fuel]) state.fuel = Object.keys(g.fuels)[0];
+  state.conn = g ? E.autoConnection(g) : 'interlock';   // 50A or 30A outlet through a power inlet; extension cords if it has neither
   house.setGeneratorModel(g);
   revalidate();
 }
 function revalidate() {
   // Called after the generator, fuel, home details, A/C size or soft starter changes.
+  if (!gen()) { state.tripped = null; render(); return; }
   const live = liveSet();
   const r = E.checkLoad(APPS, live, cap(), opts());
   if (!r.ok && live.size) { trip(r.message); return; }        // new setup can't carry the load: (re)trip with a current explanation
@@ -107,7 +104,7 @@ function toggle(id, silent) {
     if (state.tripped) return false;
     toast('The indoor blower was switched on too. The central A/C needs it to move air through the house.');
   }
-  const r = E.checkTurnOn(APPS, liveSet(), a, cap(), opts());
+  const r = gen() ? E.checkTurnOn(APPS, liveSet(), a, cap(), opts()) : { ok: true };   // no generator yet: just planning
   state.on.add(id);
   if (!r.ok) trip(r.message); else render();
   return r.ok;
@@ -137,6 +134,8 @@ function renderHome() {
 
 function renderProduct() {
   const g = gen();
+  $('onscreen').classList.toggle('hidden', !g);
+  if (!g) return;
   const el = $('product');
   if (el.dataset.model === g.model) return;
   el.dataset.model = g.model;
@@ -158,7 +157,9 @@ function renderFuel() {
 }
 
 function renderSpecs() {
-  const g = gen(), f = fuelSpec();
+  const g = gen();
+  if (!g) { $('hudGen').textContent = 'No generator in the simulator yet'; return; }
+  const f = fuelSpec();
   const outletTxt = g.bestOutlet ? `${g.bestOutlet} · ${ampsFor(g)}A` : '120V only';
   $('genSpecs').innerHTML = `
     <div class="spec"><b>${fmt(f.running)} W</b><span>Running · ${state.fuel}</span></div>
@@ -169,7 +170,8 @@ function renderSpecs() {
 }
 
 function renderConnection() {
-  const g = gen(), a = ampsFor(g);
+  const g = gen(); if (!g) return;
+  const a = ampsFor(g);
   $('connDesc').textContent = state.conn === 'cords'
     ? 'This model has no 30A or 50A outlet, so it can\'t connect to your home panel. Appliances plug in with extension cords, and 240V appliances such as the well pump, water heater, range, electric dryer and central A/C can\'t run.'
     : `Connects to your home through its ${a}A ${g.bestOutlet} outlet, a generator cord and a power inlet box, then an interlock kit or transfer switch at your panel (up to ${fmt(g.outletCapW)} W).`;
@@ -227,6 +229,8 @@ function renderAc() {
 }
 
 function renderMeter() {
+  if (!gen()) return renderPlanMeter();
+  $('reserveMark').classList.remove('hidden');
   const c = cap();
   const live = new Set([...state.on].filter(isPowered));
   const t = E.totals(APPS, live, opts());
@@ -253,6 +257,18 @@ function renderMeter() {
   else if (!E.qualify(gen(), state.fuel, state.conn, E.targets(APPS, live, opts(), HEADROOM)).meetsPeak) { s.className = 'status warn'; s.textContent = `It runs for now, but a motor start could trip the ${gen().model}. See "Generators that fit this plan" in step 4.`; }
   else if (pctRun > reserveAt) { s.className = 'status warn'; s.textContent = `It runs, but it's using more than 83% of the generator's running watts. We recommend keeping a 20% reserve. See "Generators that fit this plan" in step 4.`; }
   else { s.className = 'status ok'; s.textContent = `Good fit. The ${gen().model} runs this load with room to spare.`; }
+}
+
+/** Before a generator is chosen: show what the plan needs instead of generator capacity. */
+function renderPlanMeter() {
+  const t = E.totals(APPS, state.on, opts());
+  $('runFill').style.width = '0%'; $('surgeFill').style.width = '0%'; $('reserveMark').classList.add('hidden');
+  $('runText').textContent = `${fmt(t.running)} W`;
+  $('surgeText').textContent = `${fmt(t.surgePeak)} W`;
+  $('pctText').textContent = '—'; $('runtimeText').textContent = '—'; $('runtimeText').title = ''; $('limitText').textContent = '—';
+  const s = $('statusLine');
+  if (!state.on.size) { s.className = 'status'; s.textContent = 'Start with your home details and fuel, then switch on what you need to power.'; }
+  else { s.className = 'status info'; s.textContent = `Your plan uses ${fmt(t.running)} W running. Pick a generator in step 4 and press Try it to test it in your home.`; }
 }
 
 function renderPanel() {
@@ -304,9 +320,21 @@ function sync3D() {
   const live = new Set([...state.on].filter(isPowered));
   const t = E.totals(APPS, live, opts());
   for (const id of house.ids) house.setApplianceState(id, isPowered(id) ? 'on' : (state.on.has(id) ? 'dead' : 'off'));
-  house.setGenerator({ running: true, load: c.running ? t.running / c.running : 0, isTripped: !!state.tripped });
+  house.setGenerator({ running: !!gen(), load: c.running ? t.running / c.running : 0, isTripped: !!state.tripped });
   house.setConnection(state.conn);
   house.setSoftStarter(state.softStart);
+}
+
+/** Reset the whole simulator back to the very beginning. */
+function startOver() {
+  Object.assign(state, START());
+  ['npRla', 'npFla', 'npLra'].forEach(id => { $(id).value = ''; }); $('npV').value = '230';
+  document.querySelectorAll('details.nameplate, #equipBox, #guide').forEach(d => { d.open = false; });
+  selectGenerator(null);
+  house.setView('home');
+  $('sidebar').scrollTop = 0; window.scrollTo(0, 0);
+  if (history.replaceState) history.replaceState(null, '', location.pathname);
+  toast('Simulator reset. Start again with your home details.');
 }
 
 // ---------------- small UI bits ----------------
@@ -326,7 +354,7 @@ function showTooltip(id, ev) {
   tip.classList.remove('hidden');
 }
 function shareLink() {
-  const p = new URLSearchParams({ model: state.model, fuel: state.fuel, sqft: state.sqft, bed: state.bedrooms, bath: state.bathrooms, ton: state.ton, soft: state.softStart ? 1 : 0, on: [...state.on].join(',') });
+  const p = new URLSearchParams({ ...(state.model ? { model: state.model } : {}), fuel: state.fuel, sqft: state.sqft, bed: state.bedrooms, bath: state.bathrooms, ton: state.ton, soft: state.softStart ? 1 : 0, on: [...state.on].join(',') });
   const url = location.origin + location.pathname + '?' + p.toString();
   const done = () => toast('Link copied. Anyone who opens it will see this exact setup.');
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt('Copy this link:', url)); else prompt('Copy this link:', url);
@@ -350,10 +378,11 @@ $('bathSelect').addEventListener('change', e => { state.bathrooms = +e.target.va
 $('fuelSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   state.fuel = b.dataset.fuel;
-  if (!gen().fuels[state.fuel]) {
-    // e.g. natural gas on a dual fuel model: move to the best-fitting generator that runs on this fuel
-    const g = bestFit(); state.tripped = null; selectGenerator(g.model);
-    toast(`The previous model doesn't run on ${state.fuel.toLowerCase()}, so the ${g.brand} ${g.model} is in the simulator now.`);
+  const g = gen();
+  if (g && !g.fuels[state.fuel]) {
+    // e.g. natural gas on a dual fuel model: take it out and let the customer pick from the new list
+    selectGenerator(null);
+    toast(`The ${g.model} doesn't run on ${state.fuel.toLowerCase()}, so it was removed. Pick a generator in step 4 to try one that does.`);
     return;
   }
   revalidate();
@@ -376,6 +405,7 @@ $('viewPanel').addEventListener('click', () => house.setView('panel'));
 $('viewGarage').addEventListener('click', () => house.setView('garage'));
 $('dayNight').addEventListener('click', () => { state.night = !state.night; house.setNight(state.night); $('dayNight').textContent = state.night ? 'Day view' : 'Night view'; sync3D(); });
 $('shareBtn').addEventListener('click', shareLink);
+$('startOverBtn').addEventListener('click', startOver);
 $('howBtn').addEventListener('click', () => $('intro').classList.remove('hidden'));
 $('introGo').addEventListener('click', () => { $('intro').classList.add('hidden'); try { localStorage.setItem('dm-sim-intro', '1'); } catch (e) { /* storage unavailable */ } });
 
@@ -391,6 +421,7 @@ if (q.get('on') !== null) state.on = new Set(q.get('on').split(',').filter(id =>
 let seen = false; try { seen = localStorage.getItem('dm-sim-intro') === '1'; } catch (e) { /* ignore */ }
 if (!seen && !q.get('model')) $('intro').classList.remove('hidden');
 applyAc(); applyHome();
+// Only a shared link can open with a generator already in the simulator.
 const linked = GENS.find(g => g.model === q.get('model') && g.fuels[state.fuel]);
-selectGenerator(linked ? linked.model : bestFit().model);   // start with the best fit for the starting plan
-window.__sim = { state, render, toggle, applyPreset, resetBreaker, selectGenerator, house };   // for testing
+selectGenerator(linked ? linked.model : null);
+window.__sim = { state, render, toggle, applyPreset, resetBreaker, selectGenerator, startOver, house };   // for testing
