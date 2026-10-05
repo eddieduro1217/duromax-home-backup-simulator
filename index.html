@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=3.0">
+<link rel="stylesheet" href="css/app.css?v=3.0.2">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -164,7 +164,13 @@
           <h3>How the generator connects</h3>
           <p>The simulator connects each generator the way we recommend for home backup: through its 50A outlet (14-50R, up to 12,000 W) or 30A outlet (L14-30R, up to 7,200 W), a generator cord and a power inlet box on the outside of the house. Models without either outlet use extension cords, which can only run 120V appliances. <b>Interlock kit:</b> a slide plate on your breaker panel that holds the main breaker off while the generator breaker is on, so power can never flow back onto the utility lines. Every circuit is available, and you choose what to run. <b>Transfer switch:</b> a small subpanel wired to pre-selected circuits. Up to 7,200 W, use a 6-circuit switch with a 30A inlet. Above 7,200 W, use a 10-circuit switch with a 50A inlet.</p>
           <h3>Bonded vs. floating neutral</h3>
-          <p>Floating-neutral generators connect to a standard 2-pole transfer switch or interlock as-is. Bonded-neutral generators need the bond removed by a qualified electrician (DuroMax publishes instructions) or a neutral-switching transfer switch.</p>
+          <p>All DuroMax generators ship with a bonded neutral. Whether you need to change that depends on how the generator is connected:</p>
+          <ul>
+            <li><b>3-pole (switched-neutral) transfer switch, or standalone / off-grid use:</b> no modification is needed.</li>
+            <li><b>2-pole transfer switch or interlock kit for home backup:</b> the generator must be unbonded to create a floating neutral.</li>
+          </ul>
+          <p>Unbonding instructions for your model are on our website: <a href="https://www.duromaxpower.com/pages/generator-manuals" target="_blank" rel="noopener">DuroMax generator manuals</a>.</p>
+          <p>Always have a certified electrician install your generator connection to the home.</p>
           <h3>Safety</h3>
           <p>Only run a generator outdoors, away from doors, windows and vents. Never plug a generator into a wall outlet (backfeeding). Home connections must be installed by a licensed electrician.</p>
         </div>
@@ -191,10 +197,10 @@
   </div>
 </div>
 
-<script src="data/generators.js?v=3.0"></script>
-<script src="data/equipment.js?v=3.0"></script>
-<script src="data/appliances.js?v=3.0"></script>
-<script src="js/engine.js?v=3.0"></script>
-<script type="module" src="js/app.js?v=3.0"></script>
+<script src="data/generators.js?v=3.0.2"></script>
+<script src="data/equipment.js?v=3.0.2"></script>
+<script src="data/appliances.js?v=3.0.2"></script>
+<script src="js/engine.js?v=3.0.2"></script>
+<script type="module" src="js/app.js?v=3.0.2"></script>
 </body>
 </html>

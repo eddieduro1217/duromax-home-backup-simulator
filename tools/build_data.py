@@ -17,6 +17,10 @@ for g in gens:
 EXCLUDE = {'XP4850EH', 'XP10000X', 'DS10000EH', 'XP11500EH', 'XP15000HX', 'XP15000HXT'}
 gens = [g for g in gens if g['model'] not in EXCLUDE]
 
+# Per DuroMax (Oct 2026): all DuroMax generators ship with a bonded neutral.
+for g in gens:
+    if g['brand'] == 'DuroMax': g['neutral_type'] = 'Bonded'
+
 OUTLET_CAP = {'14-50R': 12000, 'L14-30R': 7200}   # 50A x 240V, 30A x 240V
 
 def best_outlet(g):

@@ -1,5 +1,5 @@
 // UI + state for the Home Backup Power Simulator.
-import { createHouse } from './house.js?v=3.0';
+import { createHouse } from './house.js?v=3.0.2';
 
 const E = window.Engine;
 const GENS = window.GENERATORS;
@@ -178,11 +178,11 @@ function renderConnection() {
     : `Connects to your home through its ${a}A ${g.bestOutlet} outlet, a generator cord and a power inlet box, then an interlock kit or transfer switch at your panel (up to ${fmt(g.outletCapW)} W).`;
   const n = $('neutralNote');
   if (state.conn === 'cords') { n.className = 'note'; n.textContent = 'Use heavy-duty outdoor cords, and plug each high-draw appliance into its own outlet or cord.'; }
-  else if (g.neutral === 'Floating') { n.className = 'note ok'; n.textContent = 'Floating neutral: connects to a standard 2-pole transfer switch or interlock kit as-is.'; }
+  else if (g.neutral === 'Floating') { n.className = 'note ok'; n.textContent = 'Floating neutral: connects to a standard 2-pole transfer switch or interlock kit as-is. Have a certified electrician install the connection.'; }
   else if (g.neutral === 'Bonded') {
     n.className = 'note warn';
-    n.innerHTML = 'Bonded neutral: a qualified electrician removes the bond before this model is used with a standard 2-pole transfer switch or interlock kit' +
-      (g.unbondDoc ? ` (<a href="${g.unbondDoc}" target="_blank" rel="noopener">DuroMax unbond instructions</a>)` : ' (contact DuroMax for this model)') + '. Never run it unbonded unless it is grounded through the home.';
+    n.innerHTML = 'Ships with a bonded neutral. For home backup through an interlock kit or 2-pole transfer switch, the generator must be unbonded to create a floating neutral' +
+      ' (unbonding instructions: <a href="https://www.duromaxpower.com/pages/generator-manuals" target="_blank" rel="noopener">DuroMax generator manuals</a>)' + '. No change is needed with a 3-pole (switched-neutral) transfer switch. Always have a certified electrician install the connection.';
   } else { n.className = 'note'; n.textContent = ''; }
   $('equipList').innerHTML = equipmentFor(g).map(e => `<div class="equip-item"><div><span class="role">${e.role}</span>${e.url ? `<a href="${e.url}" target="_blank" rel="noopener">${e.sku ? e.sku + ' · ' : ''}${short(e.title)}</a>` : `<span class="text">${e.title}</span>`}</div><span class="price">${e.price ? '$' + e.price.toFixed(2) : ''}${e.available === false ? ' · out of stock' : ''}</span></div>`).join('');
 }
