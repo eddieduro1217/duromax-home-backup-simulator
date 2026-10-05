@@ -46,7 +46,7 @@ export const tex = {
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const t = 228 + r() * 14; g.fillStyle = `rgb(${t},${t - 3},${t - 9})`; g.fillRect(i * s + 2, j * s + 2, s - 4, s - 4); }
     noise(g, w, h, 8, 9);
   }, { repeat: rep || [4, 4] }),
-  carpet: (rep) => canvasTexture('carpet', 256, 256, (g, w, h) => { g.fillStyle = '#8f9aa6'; g.fillRect(0, 0, w, h); noise(g, w, h, 30, 11); }, { repeat: rep || [3, 3] }),
+  carpet: (rep) => canvasTexture('carpet', 256, 256, (g, w, h) => { g.fillStyle = '#b8b0a3'; g.fillRect(0, 0, w, h); noise(g, w, h, 22, 11); }, { repeat: rep || [3, 3] }),
   concrete: (rep) => canvasTexture('concrete', 256, 256, (g, w, h) => {
     g.fillStyle = '#a9a9a4'; g.fillRect(0, 0, w, h); noise(g, w, h, 26, 13);
     g.strokeStyle = 'rgba(70,70,70,.25)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
@@ -70,6 +70,82 @@ export const tex = {
     g.fillStyle = '#ecebe7'; g.fillRect(0, 0, w, h);
     for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) { const x = 10 + c * 60, y = 8 + r * 62; g.fillStyle = 'rgba(0,0,0,.07)'; g.fillRect(x, y, 54, 52); g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(x + 3, y + 3, 48, 2); }
     g.fillStyle = 'rgba(0,0,0,.18)'; for (let r = 1; r < 4; r++) g.fillRect(0, r * 64 - 1, w, 2);
+  }),
+  // ---- v3 "model home" materials ----
+  oak: (rep) => canvasTexture('oak', 512, 512, (g, w, h) => {      // light wide-plank oak
+    const r = rand(41); const rows = 6, ph = h / rows;
+    for (let y = 0; y < rows; y++) {
+      let x = -r() * 260;
+      while (x < w) {
+        const len = 260 + r() * 260, t = 196 + r() * 22;
+        g.fillStyle = `rgb(${t},${t * 0.83 | 0},${t * 0.64 | 0})`; g.fillRect(x, y * ph, len, ph);
+        g.strokeStyle = 'rgba(120,85,50,.16)';
+        for (let k = 0; k < 9; k++) { g.beginPath(); const yy = y * ph + r() * ph; g.moveTo(x, yy); g.bezierCurveTo(x + len * .3, yy + 4, x + len * .6, yy - 4, x + len, yy + (r() - .5) * 4); g.stroke(); }
+        g.fillStyle = 'rgba(90,60,30,.3)'; g.fillRect(x, y * ph, 1.5, ph);
+        x += len;
+      }
+      g.fillStyle = 'rgba(90,60,30,.28)'; g.fillRect(0, y * ph, w, 1.5);
+    }
+    noise(g, w, h, 8, 43);
+  }, { repeat: rep || [2, 2] }),
+  boardBatten: (rep) => canvasTexture('bb', 256, 256, (g, w, h) => {   // white vertical board-and-batten siding
+    g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 32) {
+      const grd = g.createLinearGradient(x, 0, x + 6, 0); grd.addColorStop(0, 'rgba(0,0,0,.16)'); grd.addColorStop(.5, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(0,0,0,.10)');
+      g.fillStyle = grd; g.fillRect(x, 0, 6, h);
+    }
+    noise(g, w, h, 5, 47);
+  }, { repeat: rep || [8, 2] }),
+  roofSeam: (rep) => canvasTexture('roof', 256, 256, (g, w, h) => {      // charcoal standing-seam metal
+    g.fillStyle = '#2f3338'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 32) { g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(x, 0, 2, h); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + 2, 0, 2, h); }
+    noise(g, w, h, 6, 53);
+  }, { repeat: rep || [6, 2] }),
+  lawn: (rep) => canvasTexture('lawn', 512, 512, (g, w, h) => {          // lawn with soft mowing stripes
+    for (let i = 0; i < 4; i++) { g.fillStyle = i % 2 ? '#5f8e46' : '#64944a'; g.fillRect(0, i * h / 4, w, h / 4); }
+    const r = rand(59);
+    for (let i = 0; i < 12000; i++) { const x = r() * w, y = r() * h, t = r(); g.strokeStyle = `rgba(${70 + t * 50 | 0},${120 + t * 55 | 0},${50 + t * 20 | 0},.35)`; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - .5) * 2, y - 2 - r() * 4); g.stroke(); }
+  }, { repeat: rep || [10, 10] }),
+  pavers: (rep) => canvasTexture('pavers', 256, 256, (g, w, h) => {      // large-format light pavers
+    g.fillStyle = '#b9b5ad'; g.fillRect(0, 0, w, h); const r = rand(61);
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { const t = 205 + r() * 14; g.fillStyle = `rgb(${t},${t - 3},${t - 8})`; g.fillRect(i * 128 + 3, j * 128 + 3, 122, 122); }
+    noise(g, w, h, 10, 67);
+  }, { repeat: rep || [1, 4] }),
+  mulch: (rep) => canvasTexture('mulch', 128, 128, (g, w, h) => { g.fillStyle = '#4a3324'; g.fillRect(0, 0, w, h); noise(g, w, h, 40, 71); }, { repeat: rep || [4, 1] }),
+  subway: (rep) => canvasTexture('subway', 256, 128, (g, w, h) => {
+    g.fillStyle = '#d8d6d1'; g.fillRect(0, 0, w, h);
+    for (let row = 0; row < 8; row++) for (let c = -1; c < 4; c++) { const x = c * 64 + (row % 2) * 32; g.fillStyle = '#f7f6f3'; g.fillRect(x + 1.5, row * 16 + 1.5, 61, 13); }
+  }, { repeat: rep || [6, 2] }),
+  slats: (rep) => canvasTexture('slats', 256, 256, (g, w, h) => {        // horizontal cedar slat fence
+    const r = rand(73);
+    for (let i = 0; i < 10; i++) { const t = 150 + r() * 30; g.fillStyle = `rgb(${t},${t * 0.72 | 0},${t * 0.5 | 0})`; g.fillRect(0, i * 25.6, w, 22); g.fillStyle = 'rgba(30,20,10,.55)'; g.fillRect(0, i * 25.6 + 22, w, 3.6); }
+    noise(g, w, h, 12, 79);
+  }, { repeat: rep || [10, 1] }),
+  ao: () => canvasTexture('ao', 128, 128, (g, w, h) => {                // soft contact shadow (alpha)
+    const grd = g.createRadialGradient(64, 64, 8, 64, 64, 64); grd.addColorStop(0, 'rgba(0,0,0,.55)'); grd.addColorStop(.55, 'rgba(0,0,0,.25)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  }),
+  aoEdge: () => canvasTexture('aoedge', 4, 64, (g, w, h) => {           // wall/floor corner darkening (alpha)
+    const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, 'rgba(0,0,0,.32)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  }),
+  pool: () => canvasTexture('pool', 128, 128, (g, w, h) => {             // warm light pool for night lighting (additive)
+    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64); grd.addColorStop(0, 'rgba(255,214,150,.9)'); grd.addColorStop(.4, 'rgba(255,190,110,.35)'); grd.addColorStop(1, 'rgba(255,170,90,0)');
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+  }),
+  art: (n) => canvasTexture('art' + n, 128, 160, (g, w, h) => {         // simple abstract wall art
+    const pal = [['#e9e2d6', '#c9763f', '#2f4858', '#d9b26f'], ['#eef0ee', '#5e7d6b', '#c9a27e', '#1f2a33'], ['#f2ece4', '#355c7d', '#e3a857', '#8aa1b1']][n % 3];
+    g.fillStyle = pal[0]; g.fillRect(0, 0, w, h);
+    g.fillStyle = pal[1]; g.beginPath(); g.arc(w * .38, h * .4, w * .26, 0, Math.PI * 2); g.fill();
+    g.fillStyle = pal[2]; g.fillRect(w * .15, h * .62, w * .7, h * .12);
+    g.fillStyle = pal[3]; g.beginPath(); g.moveTo(w * .55, h * .2); g.lineTo(w * .85, h * .55); g.lineTo(w * .55, h * .55); g.fill();
+    g.strokeStyle = '#1b1b1b'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
+  }),
+  sky: (night) => canvasTexture(night ? 'skyN' : 'skyD', 4, 256, (g, w, h) => {
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    if (night) { grd.addColorStop(0, '#050a18'); grd.addColorStop(.6, '#0d1a36'); grd.addColorStop(1, '#1d2c4a'); }
+    else { grd.addColorStop(0, '#6fa6dc'); grd.addColorStop(.6, '#b8d6ef'); grd.addColorStop(1, '#eef3f2'); }
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
   }),
 };
 

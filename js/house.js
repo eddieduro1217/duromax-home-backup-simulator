@@ -3,15 +3,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { tex, roundRect } from './textures.js?v=2.5';
-import { buildGenerator } from './models/generator.js?v=2.5';
-import { buildEV } from './models/ev.js?v=2.5';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { tex, roundRect } from './textures.js?v=3.0';
+import { buildGenerator } from './models/generator.js?v=3.0';
+import { buildEV } from './models/ev.js?v=3.0';
 
 const GEN_POS = new THREE.Vector3(14.2, 0.02, -3.2);
 const INLET_POS = new THREE.Vector3(8.1, 0.62, -3.5);
 
 export function createHouse(container, { onClick, onHover } = {}) {
-  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  window.__renderer = renderer;   // for testing (draw-call, memory and click checks)
   let pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
   renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled = true;
@@ -34,14 +36,18 @@ export function createHouse(container, { onClick, onHover } = {}) {
     home: { pos: [15, 18, 23], target: [2.2, 0, 0] },
     panel: { pos: [16.2, 1.9, -0.6], target: [14.2, 0.45, -3.2] },
     garage: { pos: [9.5, 7, 10], target: [5.8, 0.5, 0] },
+    exterior: { pos: [-12, 13, 41], target: [1.5, 1.4, 0] },     // street view: roof and walls shown
   };
   let viewAnim = null;
   function setView(name, instant) {
     const v = VIEWS[name] || VIEWS.home;
-    if (instant) { camera.position.set(...v.pos); controls.target.set(...v.target); controls.update(); return; }
-    viewAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toP: new THREE.Vector3(...v.pos), toT: new THREE.Vector3(...v.target) };
+    // portrait phones: move in closer so the house fills the narrow view (exterior stays far enough to show the roof)
+    const k = camera.aspect < 0.9 ? ({ home: 0.8, garage: 0.9, exterior: 0.96 }[name] || 1) : 1;
+    const toT = new THREE.Vector3(...v.target), toP = new THREE.Vector3(...v.pos).sub(toT).multiplyScalar(k).add(toT);
+    if (instant) { camera.position.copy(toP); controls.target.copy(toT); controls.update(); return; }
+    viewAnim = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toP, toT };
   }
-  setView('home', true);
+  setView('exterior', true);   // arrive at the street view, then glide into the cutaway (see the end of createHouse)
 
   // ---------- lighting ----------
   const hemi = new THREE.HemisphereLight(0xdfe8ff, 0x4a3f30, 0.6);
@@ -74,7 +80,46 @@ export function createHouse(container, { onClick, onHover } = {}) {
     m.position.set(x, y + h / 2, z); m.castShadow = true; m.receiveShadow = true; return m;
   }
   function glowMat(color) { return new THREE.MeshStandardMaterial({ color: 0x1a1a1a, emissive: color, emissiveIntensity: 0, roughness: 0.4 }); }
-  function add(...o) { o.forEach(x => scene.add(x)); return o[0]; }
+  // Static meshes go into S and are merged by material at the end (hundreds of draw calls -> a few dozen).
+  const S = new THREE.Group();
+  const at = (m, x, y, z) => { m.position.set(x, y, z); return m; };
+  function add(...o) { o.forEach(x => S.add(x)); return o[0]; }
+  function sliceGeom(g, start, count) {
+    const out = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(g.attributes)) out.setAttribute(name, new THREE.BufferAttribute(a.array.slice(start * a.itemSize, (start + count) * a.itemSize), a.itemSize));
+    return out;
+  }
+  /** Bake a group of static meshes into one mesh per material (and shadow setting). Returns the new meshes. */
+  function mergeStatic(root, target = scene) {
+    root.updateMatrixWorld(true);
+    const buckets = new Map();
+    root.traverse(o => {
+      if (!o.isMesh || !o.visible) return;
+      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      g.applyMatrix4(o.matrixWorld);
+      for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(n)) g.deleteAttribute(n);
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      const put = (m, geo) => {
+        const wu = m.userData.worldUV;
+        if (wu) {   // planar world UVs: u along the wall, v up
+          const P = geo.attributes.position, N = geo.attributes.normal, uv = new Float32Array(P.count * 2);
+          for (let i = 0; i < P.count; i++) { const alongX = Math.abs(N.getZ(i)) >= Math.abs(N.getX(i)); uv[i * 2] = (alongX ? P.getX(i) : P.getZ(i)) * wu[0]; uv[i * 2 + 1] = P.getY(i) * wu[1]; }
+          geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+        }
+        const k = m.uuid + (o.castShadow ? 's' : ''); if (!buckets.has(k)) buckets.set(k, { m, cast: o.castShadow, list: [] }); buckets.get(k).list.push(geo); };
+      if (Array.isArray(o.material)) for (const grp of g.groups) put(o.material[grp.materialIndex], sliceGeom(g, grp.start, grp.count));
+      else { g.clearGroups(); put(o.material, g); }
+      o.geometry.dispose();
+    });
+    const out = [];
+    for (const { m, cast, list } of buckets.values()) {
+      const mesh = new THREE.Mesh(mergeGeometries(list, false), m);
+      mesh.castShadow = cast; mesh.receiveShadow = !m.transparent; mesh.renderOrder = m.transparent ? 1 : 0;
+      target.add(mesh); out.push(mesh); list.forEach(x => x.dispose());
+    }
+    return out;
+  }
   function floorLabel(text, x, z, size = 1) {
     const c = document.createElement('canvas'); c.width = 512; c.height = 128;
     const g = c.getContext('2d');
@@ -100,44 +145,64 @@ export function createHouse(container, { onClick, onHover } = {}) {
   }
 
   // ---------- site ----------
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ map: tex.grass([30, 30]), roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: tex.lawn([34, 34]), roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  add(box(4.4, 0.03, 12, 0, 6, 0, 11, { material: mat(0xffffff, { map: tex.asphalt([2, 6]), roughness: 0.95 }) }));          // driveway
-  add(box(1.4, 0.03, 7, 0, 1.2, 0, 8.5, { material: mat(0xffffff, { map: tex.concrete([1, 5]) }) }));                         // front walk
-  add(box(3.6, 0.04, 2.8, 0, GEN_POS.x, 0, GEN_POS.z, { material: mat(0xffffff, { map: tex.concrete([2, 2]) }) }));          // generator pad
-  add(box(1.6, 0.04, 1.6, 0, -6.3, 0, 6.35, { material: mat(0xffffff, { map: tex.concrete([1, 1]) }) }));                    // A/C pad
+  add(box(4.4, 0.03, 12, 0, 6, 0, 11, { material: mat(0xffffff, { map: tex.concrete([2, 6]), roughness: 0.9, color: 0xd8d6d0 }) }));   // driveway
+  add(box(1.4, 0.03, 7, 0, 1.2, 0, 8.5, { material: mat(0xffffff, { map: tex.pavers([1, 5]) }) }));                                 // front walk
+  add(box(3.6, 0.04, 2.8, 0, GEN_POS.x, 0, GEN_POS.z, { material: mat(0xffffff, { map: tex.concrete([2, 2]) }) }));              // generator pad
+  add(box(1.6, 0.04, 1.6, 0, -6.3, 0, 6.35, { material: mat(0xffffff, { map: tex.concrete([1, 1]) }) }));                        // A/C pad
   // foundation
-  add(box(16.3, 0.12, 10.3, 0x8d8a84, 0, 0, 0));
+  add(box(16.3, 0.12, 10.3, 0x6f6c66, 0, 0, 0));
+  // mulch beds along the front of the house
+  add(box(7.7, 0.035, 1.1, 0, -4.15, 0, 5.75, { material: mat(0xffffff, { map: tex.mulch([6, 1]), roughness: 1 }) }));
+  add(box(1.9, 0.035, 1.1, 0, 2.95, 0, 5.75, { material: mat(0xffffff, { map: tex.mulch([2, 1]), roughness: 1 }) }));
 
   // floors
   const rooms = [
-    ['Kitchen', -8, -2, -5, 0, tex.tile([6, 5])], ['Living Room', -2, 4, -5, 0, tex.wood([3, 2.5])],
+    ['Kitchen', -8, -2, -5, 0, tex.tile([6, 5])], ['Living Room', -2, 4, -5, 0, tex.oak([2.4, 2])],
     ['Bedroom', -8, -3, 0, 5, tex.carpet([4, 4])], ['Utility / Laundry', -3, 4, 0, 5, tex.tile([7, 5])],
     ['Garage', 4, 8, -5, 5, tex.concrete([2, 5])],
   ];
   for (const [name, x0, x1, z0, z1, map] of rooms) {
-    add(box(x1 - x0, 0.02, z1 - z0, 0, (x0 + x1) / 2, 0.12, (z0 + z1) / 2, { material: new THREE.MeshStandardMaterial({ map, roughness: name === 'Garage' ? 0.9 : 0.55 }) }));
+    add(box(x1 - x0, 0.02, z1 - z0, 0, (x0 + x1) / 2, 0.12, (z0 + z1) / 2, { material: new THREE.MeshStandardMaterial({ map, roughness: name === 'Garage' ? 0.9 : 0.5 }) }));
     floorLabel(name, (x0 + x1) / 2, name === 'Garage' ? 3.6 : (z0 + z1) / 2 + (name === 'Living Room' ? 1.2 : 0.3), name.length > 10 ? 0.75 : 0.65);
   }
   const F = 0.14; // finished floor height
 
+  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff7e0, emissive: 0xffe2a8, emissiveIntensity: 0 });
+
+  // ---------- baked ambient occlusion (soft contact shadows): transparent decals, merged into one draw ----------
+  const AO = new THREE.Group();
+  const aoBlobM = new THREE.MeshBasicMaterial({ map: tex.ao(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  const aoEdgeM = new THREE.MeshBasicMaterial({ map: tex.aoEdge(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+  function aoPlane(m, w, d, x, y, z, rotY = 0) { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); p.rotation.set(-Math.PI / 2, 0, rotY); p.position.set(x, y, z); AO.add(p); return p; }
+  function aoBlob(x, z, w, d, y = 0.141) { aoPlane(aoBlobM, w * 1.35, d * 1.35, x, y, z); }
+  // edge strips darken the floor where it meets a wall (dark at the wall, fading into the room)
+  function aoEdgeX(x0, x1, z, dir) { const p = aoPlane(aoEdgeM, x1 - x0, 0.45, (x0 + x1) / 2, 0.142, z + dir * 0.225); if (dir < 0) p.rotation.z = Math.PI; }
+  function aoEdgeZ(z0, z1, x, dir) { const p = aoPlane(aoEdgeM, z1 - z0, 0.45, x + dir * 0.225, 0.142, (z0 + z1) / 2, dir > 0 ? Math.PI / 2 : -Math.PI / 2); }
+
   // walls: tall back/left exterior walls (siding outside, drywall inside), low cutaway front/right walls
   const H = 2.7, T = 0.16;
-  const sidingM = new THREE.MeshStandardMaterial({ map: tex.siding([10, 2.5]), roughness: 0.8 });
-  const sidingSideM = new THREE.MeshStandardMaterial({ map: tex.siding([6, 2.5]), roughness: 0.8 });
+  // siding uses world-space UVs (set while baking) so the boards line up across every wall piece
+  const sidingM = new THREE.MeshStandardMaterial({ map: tex.boardBatten([1, 1]), roughness: 0.75 });
+  sidingM.userData.worldUV = [1 / 3.2, 1 / 2.7];
+  const sidingSideM = sidingM;
   const dryM = new THREE.MeshStandardMaterial({ map: tex.drywall([6, 2]), roughness: 0.9 });
   const trimM = mat(0xf7f7f5, { roughness: 0.5 });
-  const capM = mat(0xe9e5de, { roughness: 0.6 });
+  const capM = mat(0x2e3238, { roughness: 0.8 });                 // architectural "section cut" on wall tops
+  const frameM = mat(0x1d1f22, { roughness: 0.45, metalness: 0.2 });   // black window frames
   function wallX(x0, x1, z, h, inside = 'south') {   // wall running along X at z
     const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, h, T), [capM, capM, capM, capM, inside === 'south' ? dryM : sidingM, inside === 'south' ? sidingM : dryM]);
-    m.position.set((x0 + x1) / 2, F + h / 2, z); m.castShadow = m.receiveShadow = true; scene.add(m);
-    const base = box(x1 - x0, 0.1, 0.02, 0, (x0 + x1) / 2, F, z + (inside === 'south' ? T / 2 + 0.01 : -T / 2 - 0.01), { material: trimM }); scene.add(base);
+    m.position.set((x0 + x1) / 2, F + h / 2, z); m.castShadow = m.receiveShadow = true; S.add(m);
+    add(box(x1 - x0, 0.1, 0.02, 0, (x0 + x1) / 2, F, z + (inside === 'south' ? T / 2 + 0.01 : -T / 2 - 0.01), { material: trimM }));
+    aoEdgeX(x0, x1, z + (inside === 'south' ? T / 2 : -T / 2), inside === 'south' ? 1 : -1);
     return m;
   }
   function wallZ(z0, z1, x, h, inside = 'east') {    // wall running along Z at x
     const m = new THREE.Mesh(new THREE.BoxGeometry(T, h, z1 - z0), [inside === 'east' ? dryM : sidingSideM, inside === 'east' ? sidingSideM : dryM, capM, capM, capM, capM]);
-    m.position.set(x, F + h / 2, (z0 + z1) / 2); m.castShadow = m.receiveShadow = true; scene.add(m);
-    const base = box(0.02, 0.1, z1 - z0, 0, x + (inside === 'east' ? T / 2 + 0.01 : -T / 2 - 0.01), F, (z0 + z1) / 2, { material: trimM }); scene.add(base);
+    m.position.set(x, F + h / 2, (z0 + z1) / 2); m.castShadow = m.receiveShadow = true; S.add(m);
+    add(box(0.02, 0.1, z1 - z0, 0, x + (inside === 'east' ? T / 2 + 0.01 : -T / 2 - 0.01), F, (z0 + z1) / 2, { material: trimM }));
+    aoEdgeZ(z0, z1, x + (inside === 'east' ? T / 2 : -T / 2), inside === 'east' ? 1 : -1);
     return m;
   }
   wallX(-8, 8.08, -5, H);                 // back
@@ -150,23 +215,22 @@ export function createHouse(container, { onClick, onHover } = {}) {
   wallX(-8, -5.6, 0, 1.1); wallX(-4.6, -3.2, 0, 1.1); wallX(-2.2, 4, 0, 1.1);   // front rooms / back rooms (doorways)
   // windows (frame + glass + sill) on the back and left walls
   const winGlass = [];
+  const glassM = new THREE.MeshStandardMaterial({ color: 0x9cc4e4, roughness: 0.05, metalness: 0.3, emissive: 0xffd9a0, emissiveIntensity: 0, transparent: true, opacity: 0.8 });
+  winGlass.push(glassM);
   function windowX(x, z, w = 1.5, h = 1.15, y = 1.0) {
-    const gm = new THREE.MeshStandardMaterial({ color: 0x9cc4e4, roughness: 0.05, metalness: 0.3, emissive: 0xffd9a0, emissiveIntensity: 0, transparent: true, opacity: 0.85 });
-    winGlass.push(gm);
     for (const s of [1, -1]) {
-      add(box(w + 0.14, h + 0.14, 0.05, 0, x, F + y - 0.07, z + s * (T / 2 + 0.02), { material: trimM }));
-      add(box(w, h, 0.02, 0, x, F + y, z + s * (T / 2 + 0.05), { material: gm }));
-      add(box(0.04, h, 0.03, 0, x, F + y, z + s * (T / 2 + 0.06), { material: trimM }));
-      add(box(w + 0.3, 0.05, 0.12, 0, x, F + y - 0.1, z + s * (T / 2 + 0.06), { material: trimM }));
+      add(box(w + 0.1, h + 0.1, 0.05, 0, x, F + y - 0.05, z + s * (T / 2 + 0.02), { material: frameM }));
+      add(box(w, h, 0.02, 0, x, F + y, z + s * (T / 2 + 0.05), { material: glassM }));
+      add(box(0.035, h, 0.03, 0, x, F + y, z + s * (T / 2 + 0.06), { material: frameM }));
+      add(box(w + 0.16, 0.04, 0.1, 0, x, F + y - 0.09, z + s * (T / 2 + 0.05), { material: s > 0 ? trimM : frameM }));
     }
   }
   function windowZ(x, z, w = 1.3, h = 1.1, y = 1.0) {
-    const gm = new THREE.MeshStandardMaterial({ color: 0x9cc4e4, roughness: 0.05, metalness: 0.3, emissive: 0xffd9a0, emissiveIntensity: 0, transparent: true, opacity: 0.85 });
-    winGlass.push(gm);
     for (const s of [1, -1]) {
-      add(box(0.05, h + 0.14, w + 0.14, 0, x + s * (T / 2 + 0.02), F + y - 0.07, z, { material: trimM }));
-      add(box(0.02, h, w, 0, x + s * (T / 2 + 0.05), F + y, z, { material: gm }));
-      add(box(0.12, 0.05, w + 0.3, 0, x + s * (T / 2 + 0.06), F + y - 0.1, z, { material: trimM }));
+      add(box(0.05, h + 0.1, w + 0.1, 0, x + s * (T / 2 + 0.02), F + y - 0.05, z, { material: frameM }));
+      add(box(0.02, h, w, 0, x + s * (T / 2 + 0.05), F + y, z, { material: glassM }));
+      add(box(0.03, h, 0.035, 0, x + s * (T / 2 + 0.06), F + y, z, { material: frameM }));
+      add(box(0.1, 0.04, w + 0.16, 0, x + s * (T / 2 + 0.05), F + y - 0.09, z, { material: s > 0 ? trimM : frameM }));
     }
   }
   windowX(-3.3, -5, 1.2); windowX(0.2, -5, 1.6); windowX(2.7, -5, 1.0); windowZ(-8, -3.2); windowZ(-8, 3.6, 1.2);
@@ -210,35 +274,100 @@ export function createHouse(container, { onClick, onHover } = {}) {
   // garage: workbench + shelves
   add(box(1.6, 0.9, 0.6, 0, 7.1, F, -4.6, { material: woodDark })); add(box(1.6, 0.05, 0.62, 0, 7.1, F + 0.9, -4.6, { material: wood }));
   add(box(0.5, 1.8, 1.4, 0, 7.65, F, -2.2, { material: mat(0x5a5f66, { metalness: 0.4, roughness: 0.5 }) }));
+  // ---- model-home details ----
+  // kitchen: subway backsplash, toe kick, cabinet pulls, upper-cabinet doors, range hood
+  { const bs = new THREE.Mesh(new THREE.PlaneGeometry(4.05, 0.6), new THREE.MeshStandardMaterial({ map: tex.subway([7, 1.5]), roughness: 0.3 }));
+    bs.position.set(-4.72, F + 1.2, -4.915); add(bs);
+    add(box(3.3, 0.1, 0.02, 0, -4.35, F, -4.3, { material: mat(0x2b2b2b) }));
+    const pullM = mat(0x1d1f22, { metalness: 0.6, roughness: 0.35 });
+    for (let i = 0; i < 6; i++) { add(box(0.14, 0.014, 0.02, 0, -5.7 + i * 0.55, F + 0.74, -4.29, { material: pullM })); add(box(0.014, 0.12, 0.02, 0, -5.7 + i * 0.55, F + 1.55, -4.6, { material: pullM })); }
+    for (let i = 0; i < 6; i++) add(box(0.01, 0.66, 0.005, 0, -5.95 + i * 0.55, F + 1.52, -4.603, { material: mat(0xd5d2cc) }));
+    add(rbox(0.8, 0.22, 0.5, 0.03, 0, -6.35, F + 1.6, -4.72, { material: steelM }));
+    add(box(0.3, 0.5, 0.25, 0, -6.35, F + 1.82, -4.8, { material: steelM })); }
+  // living room: armchair, side table, wall art, plants, throw pillows
+  { const chairM = mat(0xc8b9a3, { roughness: 0.95 });
+    add(rbox(0.85, 0.4, 0.8, 0.08, 0, 3.15, F, -2.3, { material: chairM })); add(rbox(0.85, 0.5, 0.18, 0.07, 0, 3.15, F + 0.32, -1.98, { material: chairM }));
+    for (const dx of [-0.36, 0.36]) add(rbox(0.14, 0.55, 0.8, 0.06, 0, 3.15 + dx, F, -2.3, { material: chairM }));
+    add(cyl(0.22, 0.03, 0, 2.35, F + 0.5, -3.3, { material: wood })); add(cyl(0.025, 0.5, 0, 2.35, F, -3.3, { material: frameM }));
+    for (const [x, c] of [[0.35, 0xd9b26f], [1.65, 0xe9e2d6]]) add(rbox(0.38, 0.32, 0.12, 0.05, 0, x, F + 0.55, -0.5, { material: mat(c, { roughness: 0.95 }) })); }
+  function art(n, x, y, z, w, h, rotY) { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex.art(n), roughness: 0.6 })); m.position.set(x, y, z); m.rotation.y = rotY; add(m); }
+  art(0, -7.915, F + 1.55, -1.2, 0.7, 0.88, Math.PI / 2);      // kitchen / dining wall
+  art(1, -7.915, F + 1.55, 1.5, 0.6, 0.75, Math.PI / 2);       // bedroom wall
+  function plant(x, z, s = 1) {
+    add(cyl(0.16 * s, 0.34 * s, 0, x, F, z, { material: mat(0xe8e2d8, { roughness: 0.7 }) }));
+    for (const [dx, dy, dz, r] of [[0, 0.62, 0, 0.3], [0.12, 0.5, 0.08, 0.22], [-0.1, 0.52, -0.08, 0.22]]) add(at(new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 2), mat(0x4f7d45, { roughness: 0.85 })), x + dx * s, F + dy * s, z + dz * s));
+  }
+  plant(-7.55, -0.5); plant(-2.6, -0.5, 0.8); plant(-3.5, 4.55, 0.8);
+  // bedroom bench
+  add(rbox(1.2, 0.42, 0.4, 0.04, 0, -6.4, F, 2.35, { material: mat(0xc8b9a3, { roughness: 0.95 }) }));
+  // garage: pegboard + storage cabinets
+  add(box(1.6, 0.7, 0.02, 0, 7.1, F + 1.15, -4.91, { material: mat(0xb89f7c, { roughness: 0.9 }) }));
+  add(box(1.0, 0.8, 0.4, 0, 6.35, F + 1.5, -4.75, { material: mat(0x5a5f66, { metalness: 0.3, roughness: 0.5 }) }));
+  // contact shadows under furniture and appliances
+  for (const [x, z, w, d] of [[1.0, -0.85, 2.5, 1.1], [-5.4, -2.1, 1.6, 1.2], [-6.4, 3.7, 1.9, 2.2], [-4.35, -4.62, 3.4, 0.7], [-7.35, -4.45, 0.95, 0.8],
+    [1.0, -4.68, 2.0, 0.5], [3.15, -2.3, 0.95, 0.9], [-3.7, 0.6, 1.2, 0.5], [-1.6, 4.5, 2.4, 0.7], [0.35, 4.45, 0.6, 0.6], [1.35, 4.45, 0.7, 0.75],
+    [2.8, 1.2, 1.3, 0.8], [3.4, 4.4, 0.55, 0.55], [7.1, -4.6, 1.7, 0.65], [7.65, -2.2, 0.6, 1.5], [0.8, 0.4, 1.1, 0.4], [-7.6, 2.35, 0.5, 0.45], [-5.2, 4.45, 0.5, 0.45]]) aoBlob(x, z, w, d);
+  aoBlob(5.75, -0.4, 2.3, 4.9, 0.142);   // under the EV
+
   // porch step + front door
   add(box(1.6, 0.14, 0.8, 0x9b9892, 1.2, 0, 5.45));
   add(box(1.0, 0.5, 0.08, 0, 1.2, F, 5.0, { material: mat(0x1f3b5c) }));
 
-  // landscaping
-  const leaf = mat(0x3f6e34, { roughness: 0.9, flatShading: true }), leaf2 = mat(0x4d7f3b, { roughness: 0.9, flatShading: true });
-  function shrub(x, z, s = 0.5) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), Math.random() > 0.5 ? leaf : leaf2); m.position.set(x, s * 0.7, z); m.castShadow = true; scene.add(m); }
-  for (let x = -7.5; x < 0; x += 1.1) shrub(x, 5.7 + (x % 2 ? 0.1 : 0), 0.42);
-  for (let x = 2.2; x < 3.8; x += 0.8) shrub(x, 5.7, 0.36);
+  // landscaping: smooth boxwood shrubs, ornamental grasses, broadleaf and columnar trees
+  const leafMs = [0x4e7d3c, 0x5b8a43, 0x46733a, 0x6a9550].map(c => mat(c, { roughness: 0.85 }));
+  let lr = 3; const lrand = () => ((lr = (lr * 16807) % 2147483647) / 2147483647);
+  function shrub(x, z, s = 0.45) { add(at(new THREE.Mesh(new THREE.IcosahedronGeometry(s, 2), leafMs[(lrand() * 4) | 0]), x, s * 0.75, z)).scale.set(1, 0.85, 1); }
+  for (let x = -7.6; x < -0.6; x += 1.05) shrub(x, 5.75, 0.38 + lrand() * 0.08);
+  for (const x of [2.3, 3.6]) shrub(x, 5.75, 0.36);
+  const grassM = mat(0xa7a85a, { roughness: 0.9 });
+  for (const x of [-7.05, -4.95, -2.85, 2.95]) for (let k = 0; k < 5; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.6 + lrand() * 0.2, 5), grassM); c.position.set(x + (lrand() - 0.5) * 0.25, 0.32, 5.75 + (lrand() - 0.5) * 0.25); c.rotation.set((lrand() - 0.5) * 0.5, 0, (lrand() - 0.5) * 0.5); add(c); }
   function tree(x, z, s = 1) {
-    add(cyl(0.16 * s, 2.2 * s, 0x5a4331, x, 0, z));
-    for (const [dx, dy, dz, r] of [[0, 3.0, 0, 1.4], [0.6, 2.6, 0.3, 1.0], [-0.5, 2.7, -0.4, 1.0], [0.1, 3.7, 0.1, 0.9]]) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 1), leaf); m.position.set(x + dx * s, dy * s, z + dz * s); m.castShadow = true; scene.add(m); }
+    add(cyl(0.13 * s, 2.4 * s, 0x5d4a3a, x, 0, z));
+    const m = leafMs[(lrand() * 4) | 0];
+    for (const [dx, dy, dz, r] of [[0, 3.1, 0, 1.35], [0.75, 2.75, 0.35, 0.95], [-0.65, 2.85, -0.4, 1.0], [0.2, 3.85, 0.15, 0.95], [-0.3, 2.6, 0.7, 0.8]])
+      add(at(new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 3), m), x + dx * s, dy * s, z + dz * s));
+    aoPlane(aoBlobM, 3.6 * s, 3.6 * s, x, 0.01, z);
   }
-  tree(-11, -7.5, 1.2); tree(-11.5, 6, 1); tree(19, 8, 1.1); tree(3, -9.5, 0.9);
-  // back fence
-  for (let x = -13; x <= 20; x += 0.25) add(box(0.12, 1.4, 0.03, 0, x, 0, -9, { material: mat(0x9c7b5b) }));
-  add(box(33.3, 0.08, 0.06, 0, 3.5, 1.15, -9.03, { material: mat(0x7d6247) })); add(box(33.3, 0.08, 0.06, 0, 3.5, 0.35, -9.03, { material: mat(0x7d6247) }));
+  function columnar(x, z, s = 1) {
+    add(cyl(0.08 * s, 0.6 * s, 0x5d4a3a, x, 0, z));
+    for (const [y, r, sy] of [[1.3, 0.62, 1.5], [2.3, 0.55, 1.5], [3.15, 0.42, 1.4], [3.8, 0.26, 1.3]]) add(at(new THREE.Mesh(new THREE.IcosahedronGeometry(r * s, 2), leafMs[2]), x, y * s, z)).scale.set(1, sy, 1);
+  }
+  tree(-11, -7.2, 1.2); tree(-11.5, 6.5, 1); tree(19, 8, 1.1); tree(3, -7.4, 0.95);
+  for (const x of [-6, -3.5, 9.5, 12, 17.5]) columnar(x, -8.3, 0.9);
+  // walkway lights (glow with the LED lights)
+  const bollardM = mat(0x1d1f22, { roughness: 0.5 });
+  for (const z of [6.6, 8.6, 10.6]) for (const dx of [-0.95, 0.95]) { add(cyl(0.06, 0.45, 0, 1.2 + dx, 0, z, { material: bollardM })); add(cyl(0.065, 0.06, 0, 1.2 + dx, 0.38, z, { material: bulbMat })); }
+
+  // back fence: modern horizontal cedar slats with dark posts
+  add(box(33.3, 1.6, 0.05, 0, 3.5, 0, -9, { material: new THREE.MeshStandardMaterial({ map: tex.slats([13, 1]), roughness: 0.85 }) }));
+  for (let x = -13; x <= 20.1; x += 2.5) add(box(0.1, 1.7, 0.1, 0, x, 0, -9, { material: bollardM }));
 
   // ---------- appliances ----------
   const appliances = {};   // id -> { group, glows, anim, state }
   const clickables = [];
+  /** Merge an appliance's fixed parts by material (moving parts and anything flagged keep stay separate). */
+  function mergeChildren(group) {
+    const buckets = new Map();
+    for (const c of [...group.children]) {
+      if (!c.isMesh || c.userData.keep || Array.isArray(c.material)) continue;
+      c.updateMatrix();
+      const g = c.geometry.index ? c.geometry.toNonIndexed() : c.geometry.clone();
+      g.applyMatrix4(c.matrix); g.clearGroups();
+      for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(n)) g.deleteAttribute(n);
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      if (!buckets.has(c.material)) buckets.set(c.material, []);
+      buckets.get(c.material).push(g); group.remove(c); c.geometry.dispose();
+    }
+    for (const [m, list] of buckets) { const mesh = new THREE.Mesh(mergeGeometries(list, false), m); mesh.castShadow = mesh.receiveShadow = true; group.add(mesh); list.forEach(x => x.dispose()); }
+  }
   function reg(id, group, glows = [], anim = null) {
+    mergeChildren(group);
     group.traverse(o => { if (o.isMesh) { o.userData.applianceId = id; clickables.push(o); } });
     scene.add(group);
     appliances[id] = { group, glows, anim, state: 'off' };
     return appliances[id];
   }
   const G = () => new THREE.Group();
-  const at = (m, x, y, z) => { m.position.set(x, y, z); return m; };
   const white = mat(0xf2f3f4, { roughness: 0.35 });
 
   // Kitchen
@@ -330,7 +459,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
     const g = G(); const s = glowMat(glowColor);
     g.add(rbox(0.68, 0.9, 0.68, 0.03, 0, x, F, 4.5, { material: mat(color, { roughness: 0.35 }) }));
     const door = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 12, 32), steelM); door.position.set(x, F + 0.47, 4.155); g.add(door);
-    const drum = new THREE.Mesh(new THREE.CircleGeometry(0.18, 24), s); drum.position.set(x, F + 0.47, 4.152); drum.rotation.y = Math.PI; g.add(drum);
+    const drum = new THREE.Mesh(new THREE.CircleGeometry(0.18, 24), s); drum.position.set(x, F + 0.47, 4.152); drum.rotation.y = Math.PI; drum.userData.keep = true; g.add(drum);
     g.add(box(0.5, 0.08, 0.01, 0, x, F + 0.78, 4.155, { material: blackGlassM }));
     return reg(id, g, [s], (t, on, dt) => { if (on) drum.rotation.z += dt * 6; });
   }
@@ -380,6 +509,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
       door.position.y = F + 1.1 + doorOpen * 1.25; door.position.z = 5.02 - doorOpen * 1.1; door.rotation.x = -doorOpen * Math.PI / 2 * 0.98;
     }); }
   const ev = buildEV({ color: 0xf2f2ee });
+  mergeChildren(ev.group);
   ev.group.rotation.y = Math.PI / 2; ev.group.position.set(5.75, F, -0.4); scene.add(ev.group);
   const cableM = mat(0x1a1a1a);
   const portWorld = ev.portPos.clone(); ev.group.localToWorld(portWorld);
@@ -404,18 +534,23 @@ export function createHouse(container, { onClick, onHover } = {}) {
     g.add(acFan);
     g.add(box(0.06, 0.06, 0.01, 0, -6.05, 0.6, 6.83, { material: s }));
     g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(-6.3, 0.4, 5.88), new THREE.Vector3(-6.3, 0.4, 5.3), new THREE.Vector3(-6.3, 0.8, 5.1)]), 20, 0.03, 6), mat(0x222222)));
-    softBox = rbox(0.16, 0.24, 0.1, 0.02, 0, -5.8, 0.35, 6.35, { material: mat(0xffffff, { roughness: 0.3 }) }); softBox.visible = false; g.add(softBox);
+    softBox = rbox(0.16, 0.24, 0.1, 0.02, 0, -5.8, 0.35, 6.35, { material: mat(0xffffff, { roughness: 0.3 }) }); softBox.visible = false; softBox.userData.keep = true; g.add(softBox);
     reg('centralac', g, [s], (t, on, dt) => { if (on) acFan.rotation.y += dt * 12; }); }
 
   // LED lights: 10 fixtures (sconces, lamps, pendant, porch light)
-  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff7e0, emissive: 0xffe2a8, emissiveIntensity: 0 });
   const shadeM = mat(0xf3eadb, { roughness: 0.9, side: THREE.DoubleSide });
   const bulbLights = [];
+  // warm light pools on the floor (additive decals, merged into one draw) - cheap stand-ins for extra lamps at night
+  const POOLS = new THREE.Group();
+  const poolM = new THREE.MeshBasicMaterial({ map: tex.pool(), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
+  function pool(x, z, y, size) { const p = new THREE.Mesh(new THREE.PlaneGeometry(size, size), poolM); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); POOLS.add(p); }
+  for (const z of [6.6, 8.6, 10.6]) for (const dx of [-0.95, 0.95]) pool(1.2 + dx, z, 0.035, 1.3);   // walkway bollards
   { const g = G();
     const fixtures = [
       ['sconce', -6.9, 1.9, -4.9], ['pendant', -5.4, 1.75, -2.1], ['floor', 2.55, 0, -0.9], ['table', -0.3, 0.55, -4.65],
       ['table', -7.6, 0.69, 2.35], ['table', -5.2, 0.69, 4.45], ['sconce', 1.8, 1.9, 4.9], ['sconce', 3.4, 1.9, -0.05],
       ['sconce', 6.0, 2.1, -4.9], ['porch', 1.9, 1.6, 5.1]];
+    const lit = [1, 2, 4, 8]; let n = 0;   // kitchen pendant, living floor lamp, bedroom lamp, garage sconce
     for (const [type, x, y, z] of fixtures) {
       const fy = F + y; let by = fy;
       if (type === 'floor') { g.add(cyl(0.12, 0.02, 0x222222, x, F, z)); g.add(cyl(0.012, 1.4, 0x222222, x, F, z)); g.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 0.25, 20, 1, true), shadeM), x, F + 1.5, z)); by = F + 1.45; }
@@ -423,7 +558,10 @@ export function createHouse(container, { onClick, onHover } = {}) {
       else if (type === 'pendant') { g.add(cyl(0.005, 0.8, 0x222222, x, fy + 0.2, z)); g.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.18, 24, 1, true), mat(0x222222, { side: THREE.DoubleSide })), x, fy + 0.15, z)); by = fy + 0.08; }
       else { const zSign = z > 0 ? -1 : 1; g.add(box(0.1, 0.18, 0.06, 0, x, fy - 0.09, z, { material: mat(0x2a2a2a) })); by = fy; void zSign; }
       const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 12), bulbMat); b.position.set(x, by, z); g.add(b);
-      const l = new THREE.PointLight(0xffd7a0, 0, 6.5, 1.8); l.position.set(x, by, z); scene.add(l); bulbLights.push(l);
+      // Real lights only in the four main rooms (each one adds GPU cost to every pixel); every fixture gets a baked light pool.
+      if (lit.includes(n)) { const l = new THREE.PointLight(0xffd7a0, 0, 7, 1.6); l.position.set(x, by, z); scene.add(l); bulbLights.push(l); }
+      pool(x, type === 'porch' ? 5.9 : z + (type === 'sconce' ? (z > 0 ? -0.5 : 0.5) : 0), type === 'porch' ? 0.02 : F + 0.016, type === 'floor' || type === 'pendant' ? 3.2 : 2.4);
+      n++;
     }
     reg('lights', g, [bulbMat]); }
 
@@ -446,6 +584,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
       return;
     }
     const built = buildGenerator(g);
+    mergeChildren(built.group);
     genBody = built.group; genLed = built.led;
     genGroup.add(genBody);
     genGroup.position.copy(genBase);
@@ -461,12 +600,12 @@ export function createHouse(container, { onClick, onHover } = {}) {
   const inlet = rbox(0.14, 0.34, 0.28, 0.02, 0, 8.14, 0.45, -3.5, { material: mat(0x8e959c, { metalness: 0.5, roughness: 0.4 }) }); scene.add(inlet);
   // conduit inside the garage, up the right wall and along the back wall to the panel
   const conduitM = new THREE.MeshStandardMaterial({ color: 0x8a8f95, metalness: 0.6, roughness: 0.4, emissive: 0xffcc33, emissiveIntensity: 0 });
-  scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(7.93, 0.6, -3.5), new THREE.Vector3(7.9, 2.3, -3.6), new THREE.Vector3(7.8, 2.4, -4.85), new THREE.Vector3(5.4, 2.4, -4.86), new THREE.Vector3(5.0, 2.1, -4.86)], false, 'catmullrom', 0.05), 60, 0.025, 6), conduitM));
+  add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(7.93, 0.6, -3.5), new THREE.Vector3(7.9, 2.3, -3.6), new THREE.Vector3(7.8, 2.4, -4.85), new THREE.Vector3(5.4, 2.4, -4.86), new THREE.Vector3(5.0, 2.1, -4.86)], false, 'catmullrom', 0.05), 60, 0.025, 6), conduitM));
   // breaker panel on the garage back wall
-  const panel = rbox(0.55, 0.9, 0.12, 0.02, 0, 5.0, F + 1.0, -4.85, { material: mat(0x7d858e, { metalness: 0.5, roughness: 0.4 }) }); scene.add(panel);
+  const panel = rbox(0.55, 0.9, 0.12, 0.02, 0, 5.0, F + 1.0, -4.85, { material: mat(0x7d858e, { metalness: 0.5, roughness: 0.4 }) }); add(panel);
   const panelLedM = glowMat(0x3dff8a);
-  scene.add(box(0.05, 0.05, 0.01, 0, 5.2, F + 1.8, -4.785, { material: panelLedM }));
-  for (let i = 0; i < 8; i++) for (const dx of [-0.08, 0.08]) scene.add(box(0.11, 0.035, 0.01, 0, 5.0 + dx, F + 1.18 + i * 0.07, -4.785, { material: mat(0x222222) }));
+  add(box(0.05, 0.05, 0.01, 0, 5.2, F + 1.8, -4.785, { material: panelLedM }));
+  for (let i = 0; i < 8; i++) for (const dx of [-0.08, 0.08]) add(box(0.11, 0.035, 0.01, 0, 5.0 + dx, F + 1.18 + i * 0.07, -4.785, { material: mat(0x222222) }));
   const interlockPlate = box(0.26, 0.2, 0.01, 0, 5.0, F + 1.72, -4.782, { material: mat(0xf26b1d, { emissive: 0x401800 }) }); scene.add(interlockPlate);
   const tsBox = rbox(0.45, 0.6, 0.12, 0.02, 0, 5.75, F + 1.15, -4.85, { material: mat(0x5d6670, { metalness: 0.4, roughness: 0.45 }) }); scene.add(tsBox);
   const panelLabel = sprite('Breaker panel'); panelLabel.scale.set(3.0, 0.56, 1); panelLabel.position.set(5.3, 3.1, -4.6); scene.add(panelLabel);
@@ -476,6 +615,92 @@ export function createHouse(container, { onClick, onHover } = {}) {
   const puffTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(200,200,200,.5)'); gr.addColorStop(1, 'rgba(200,200,200,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t; })();
   const puffs = Array.from({ length: 8 }, (_, i) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, opacity: 0 })); s.userData.t = i / 8; scene.add(s); return s; });
 
+  // ---------- exterior shell: full-height front/side walls, gables and roof ----------
+  // Shown from the street; fades away as the camera moves in so the cutaway interior is visible.
+  const SH = new THREE.Group();
+  const shellMats = [];
+  const sm = m => { const c = m.clone(); c.userData = { ...m.userData }; c.transparent = true; c.userData.baseOpacity = m.opacity; shellMats.push(c); return c; };
+  const shSiding = sm(sidingM), shSidingSide = shSiding, shFrame = sm(frameM), shTrim = sm(trimM), shGlass = sm(glassM);
+  winGlass.push(shGlass);
+  const shRoof = sm(new THREE.MeshStandardMaterial({ map: tex.roofSeam([7, 2]), roughness: 0.55, metalness: 0.35 }));
+  const shFascia = sm(mat(0x1d1f22, { roughness: 0.5 })), shDoor = sm(mat(0x1f3b5c, { roughness: 0.45 })), shSoffit = sm(mat(0xb08a62, { roughness: 0.7 }));
+  const shBox = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y + h / 2, z); b.castShadow = true; b.receiveShadow = true; SH.add(b); return b; };
+  const TOP = F + H;   // top of the exterior walls
+  // wall along X (front) from x0..x1 at z, between y0..TOP, with openings [{c, w, b, t}] (center, width, bottom, top)
+  function shellWallX(x0, x1, z, y0, openings, m) {
+    let x = x0;
+    for (const o of [...openings].sort((a, b) => a.c - b.c)) {
+      const l = o.c - o.w / 2, r = o.c + o.w / 2;
+      if (l > x) shBox(l - x, TOP - y0, T, m, (x + l) / 2, y0, z);
+      if (o.b > y0) shBox(o.w, o.b - y0, T, m, o.c, y0, z);
+      if (o.t < TOP) shBox(o.w, TOP - o.t, T, m, o.c, o.t, z);
+      x = r;
+    }
+    if (x < x1) shBox(x1 - x, TOP - y0, T, m, (x + x1) / 2, y0, z);
+  }
+  function shellWallZ(z0, z1, x, y0, openings, m) {
+    let z = z0;
+    for (const o of [...openings].sort((a, b) => a.c - b.c)) {
+      const l = o.c - o.w / 2, r = o.c + o.w / 2;
+      if (l > z) shBox(T, TOP - y0, l - z, m, x, y0, (z + l) / 2);
+      if (o.b > y0) shBox(T, o.b - y0, o.w, m, x, y0, o.c);
+      if (o.t < TOP) shBox(T, TOP - o.t, o.w, m, x, o.t, o.c);
+      z = r;
+    }
+    if (z < z1) shBox(T, TOP - y0, z1 - z, m, x, y0, (z + z1) / 2);
+  }
+  function shWinX(c, z, w, b, t) { const h = t - b; shBox(w + 0.12, 0.06, 0.24, shFrame, c, b - 0.06, z); shBox(w, 0.05, 0.2, shFrame, c, t, z); for (const e of [-1, 1]) shBox(0.05, h, 0.2, shFrame, c + e * (w / 2 - 0.025), b, z); shBox(w, h, 0.02, shGlass, c, b, z); shBox(0.035, h, 0.05, shFrame, c, b, z); }
+  function shWinZ(c, x, w, b, t) { const h = t - b; shBox(0.24, 0.06, w + 0.12, shFrame, x, b - 0.06, c); shBox(0.2, 0.05, w, shFrame, x, t, c); for (const e of [-1, 1]) shBox(0.2, h, 0.05, shFrame, x, b, c + e * (w / 2 - 0.025)); shBox(0.02, h, w, shGlass, x, b, c); shBox(0.05, h, 0.035, shFrame, x, b, c); }
+  const Y0 = F + 0.5;  // the permanent cutaway walls stop here
+  // front of the house: bedroom window, utility window, front door with sidelight
+  shellWallX(-8, 4, 5, Y0, [{ c: -5.5, w: 1.8, b: F + 0.9, t: F + 2.15 }, { c: -1.2, w: 1.2, b: F + 1.0, t: F + 2.15 }, { c: 1.2, w: 1.0, b: Y0, t: F + 2.2 }, { c: 2.05, w: 0.36, b: Y0, t: F + 2.2 }], shSiding);
+  shWinX(-5.5, 5, 1.8, F + 0.9, F + 2.15); shWinX(-1.2, 5, 1.2, F + 1.0, F + 2.15);
+  shBox(1.0, F + 2.2 - Y0, 0.06, shDoor, 1.2, Y0, 5.0); shBox(0.04, 0.3, 0.07, shFrame, 1.55, F + 0.95, 5.05);
+  shBox(0.36, F + 2.2 - Y0, 0.02, shGlass, 2.05, Y0, 5.0);
+  shBox(1.5, 0.08, 0.2, shFrame, 1.4, F + 2.2, 5.0);
+  // garage front: piers and header around the door
+  shBox(0.3, TOP, T, shSiding, 4.15, 0, 5); shBox(0.38, TOP, T, shSiding, 7.89, 0, 5);
+  shBox(3.4, TOP - (F + 2.24), T, shSiding, 6.0, F + 2.24, 5);
+  shBox(3.55, 0.08, 0.2, shFrame, 6.0, F + 2.2, 5.04);
+  // garage side wall (toward the generator): one window
+  shellWallZ(-5, 5, 8.02, Y0, [{ c: 1.5, w: 1.2, b: F + 1.1, t: F + 2.1 }], shSidingSide);
+  shWinZ(1.5, 8.02, 1.2, F + 1.1, F + 2.1);
+  // gable ends (left and right) - triangles above the walls
+  const RISE = 2.0, RUN = 5.16;
+  for (const [x, m] of [[-8, shSidingSide], [8.02, shSidingSide]]) {
+    const tri = new THREE.Shape([new THREE.Vector2(-RUN, 0), new THREE.Vector2(RUN, 0), new THREE.Vector2(0, RISE)]);
+    const g = new THREE.ExtrudeGeometry(tri, { depth: T, bevelEnabled: false });
+    const mesh = new THREE.Mesh(g, m); mesh.rotation.y = Math.PI / 2; mesh.position.set(x - T / 2, TOP, 0); mesh.castShadow = true; SH.add(mesh);
+  }
+  // roof: two standing-seam planes with an overhang, ridge cap, dark fascia + gutters, wood soffit
+  const OVER = 0.45, eaveZ = RUN + OVER, eaveY = TOP - OVER * RISE / RUN, slope = Math.atan2(RISE, RUN), len = Math.hypot(eaveZ, RISE + OVER * RISE / RUN);
+  for (const side of [1, -1]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(17.1, 0.12, len), shRoof);
+    r.rotation.x = side * slope; r.position.set(0.02, (eaveY + TOP + RISE) / 2 + 0.06, side * eaveZ / 2); r.castShadow = true; r.receiveShadow = true; SH.add(r);
+    const sof = new THREE.Mesh(new THREE.BoxGeometry(17.0, 0.02, OVER), shSoffit); sof.position.set(0.02, eaveY + 0.02, side * (RUN + OVER / 2)); SH.add(sof);
+    shBox(17.2, 0.2, 0.06, shFascia, 0.02, eaveY - 0.08, side * (eaveZ + 0.03));
+    const gut = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 17.2, 10), shFascia); gut.rotation.z = Math.PI / 2; gut.position.set(0.02, eaveY + 0.02, side * (eaveZ + 0.1)); SH.add(gut);
+    for (const x of [-8.3, 8.35]) shBox(0.08, eaveY - 0.05, 0.08, shFascia, x, 0, side * (eaveZ + 0.1));
+  }
+  shBox(17.15, 0.08, 0.26, shFascia, 0.02, TOP + RISE + 0.08, 0);
+  // rake trim along the gable edges
+  for (const x of [-8.5, 8.54]) for (const side of [1, -1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, len), shFascia); t.rotation.x = side * slope; t.position.set(x, (eaveY + TOP + RISE) / 2, side * eaveZ / 2); SH.add(t); }
+
+  // ---------- bake static geometry ----------
+  const shellMeshes = mergeStatic(SH);
+  mergeStatic(S);
+  mergeStatic(AO).forEach(m => { m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1; });
+  mergeStatic(POOLS).forEach(m => { m.castShadow = false; m.receiveShadow = false; m.renderOrder = 2; });
+  let shellAlpha = 1;
+  function setShell(a) {
+    shellAlpha = a;
+    const vis = a > 0.01;
+    for (const m of shellMats) { const b = m.userData.baseOpacity ?? 1; m.opacity = b * a; m.transparent = b < 1 || a < 0.995; m.depthWrite = a > 0.6; }
+    for (const mesh of shellMeshes) { mesh.visible = vis; mesh.castShadow = a > 0.5; }
+    panelLabel.visible = a < 0.5;
+  }
+  setShell(1);
+
   // ---------- state setters ----------
   let genRunning = false, genLoad = 0, night = true, tripped = false;
   function setApplianceState(id, state) {        // 'off' | 'on' | 'dead'
@@ -484,6 +709,7 @@ export function createHouse(container, { onClick, onHover } = {}) {
     if (id === 'lights') {
       bulbLights.forEach(l => { l.intensity = state === 'on' ? (night ? 4.5 : 1.2) : 0; });
       winGlass.forEach(m => { m.emissiveIntensity = state === 'on' && night ? 0.55 : 0; });
+      poolM.opacity = state === 'on' ? (night ? 0.75 : 0.18) : 0;
     }
   }
   function setGenerator({ running, load, isTripped }) {
@@ -502,9 +728,8 @@ export function createHouse(container, { onClick, onHover } = {}) {
   function setSoftStarter(on) { softBox.visible = on; }
   function setNight(n) {
     night = n;
-    const sky = n ? 0x0a1224 : 0xbcd6ee;
-    scene.background = new THREE.Color(sky);
-    scene.fog = new THREE.Fog(sky, 45, 110);
+    scene.background = tex.sky(n);
+    scene.fog = new THREE.Fog(n ? 0x1d2c4a : 0xe6eef0, 50, 150);
     scene.environment = n ? null : envDay;
     hemi.intensity = n ? 0.35 : 0.6; hemi.color.setHex(n ? 0x7084c0 : 0xdfe8ff);
     sun.intensity = n ? 0.35 : 2.2; sun.color.setHex(n ? 0xa9bcff : 0xfff4e5);
@@ -591,8 +816,15 @@ export function createHouse(container, { onClick, onHover } = {}) {
       if (viewAnim.t >= 1) viewAnim = null;
     }
     controls.update();
+    // roof + exterior walls: shown when zoomed out to the street (distance > 40), hidden in the cutaway (< 34)
+    const d = camera.position.distanceTo(controls.target);
+    const want = Math.min(1, Math.max(0, (d - 34) / 6));
+    if (want !== shellAlpha) setShell(Math.abs(want - shellAlpha) < 0.01 ? want : shellAlpha + (want - shellAlpha) * Math.min(1, dt * 6));
     renderer.render(scene, camera);
   });
+
+  window.__camera = camera;   // for testing
+  setTimeout(() => { if (!viewAnim) setView('home'); }, 1200);   // glide from the street into the cutaway
 
   return { setApplianceState, setGenerator, setGeneratorModel, setConnection, setSoftStarter, setNight, setView, ids: Object.keys(appliances) };
 }

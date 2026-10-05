@@ -1,5 +1,5 @@
 // UI + state for the Home Backup Power Simulator.
-import { createHouse } from './house.js?v=2.5';
+import { createHouse } from './house.js?v=3.0';
 
 const E = window.Engine;
 const GENS = window.GENERATORS;
@@ -78,6 +78,7 @@ function selectGenerator(model) {
 }
 function revalidate() {
   // Called after the generator, fuel, home details, A/C size or soft starter changes.
+  applyAc(); applyHome();   // refresh A/C and lighting watts BEFORE checking the load (they used to update only at render)
   if (!gen()) { state.tripped = null; render(); return; }
   const live = liveSet();
   const r = E.checkLoad(APPS, live, cap(), opts());
@@ -401,6 +402,7 @@ $('matchList').addEventListener('click', e => {
 document.querySelector('.presets').addEventListener('click', e => { const b = e.target.closest('[data-preset]'); if (b) applyPreset(b.dataset.preset); });
 $('resetBtn').addEventListener('click', resetBreaker);
 $('viewHome').addEventListener('click', () => house.setView('home'));
+$('viewStreet').addEventListener('click', () => house.setView('exterior'));
 $('viewPanel').addEventListener('click', () => house.setView('panel'));
 $('viewGarage').addEventListener('click', () => house.setView('garage'));
 $('dayNight').addEventListener('click', () => { state.night = !state.night; house.setNight(state.night); $('dayNight').textContent = state.night ? 'Day view' : 'Night view'; sync3D(); });

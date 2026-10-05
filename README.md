@@ -4,6 +4,14 @@ An interactive 3D home that shows which appliances a DuroMax or DuroStar portabl
 
 Enter your home details and preferred fuel, switch on what you need (presets, the breaker list, or by clicking appliances in the house), then pick from the generators that fit the plan with **Try it** to see what runs, what trips the generator breaker, and roughly how long the fuel lasts.
 
+## What's new in v3.0 (model-home look)
+
+- Modern farmhouse exterior: white board-and-batten siding, black window frames, charcoal standing-seam roof, gutters, front door with sidelight, mulch beds, boxwoods, ornamental grasses, walkway lights and a horizontal cedar fence.
+- The roof and full-height front walls show from the street (**Exterior** button, or zoom out) and fade away as you zoom in to the cutaway. The simulator opens on the street view and glides into the cutaway.
+- Interior detail: light oak floors, subway backsplash, range hood, cabinet pulls, armchair, wall art, plants, bench, garage pegboard, dark "section cut" wall tops, and soft contact shadows under furniture.
+- Sky gradient, warm light pools from every fixture at night.
+- Performance: static geometry is baked into one mesh per material and appliance parts are merged, cutting draw calls from about 580 to about 240 per frame. Only 4 real point lights (was 10); the rest are baked light pools. Adaptive quality is unchanged.
+
 ## What's new in v2.5
 
 - The simulator opens with **no generator** and nothing switched on. A generator appears only when the customer presses **Try it** in step 4. Until then the power bar shows what the plan needs.

@@ -299,3 +299,4 @@ details > summary::-webkit-details-marker { display: none; }
 .status.info { border-color: var(--dm-blue); background: var(--dm-blue-soft); }
 .reserve.hidden { display: none; }
 @media (max-width: 600px) { .topbar-actions { gap: 6px; } .topbar-actions .btn { padding: 7px 9px; font-size: 12.5px; } }
+@media (max-width: 480px) { .hud-bottom { gap: 4px; left: 8px; right: 8px; bottom: 8px; } .btn-hud { padding: 6px 7px; font-size: 11.5px; } }
